@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: "cover",
+  viewportFit: "cover", // ✅ ফুল-স্ক্রিন কভার করবে
 };
 
 export const metadata: Metadata = {
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "black-translucent", // ✅ স্ট্যাটাস বারের কালো গ্যাপ সরাবে
     title: "Focus BD",
   },
 };
@@ -39,16 +39,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-white transition-colors antialiased`}>
+      <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </head>
+      <body className={`${inter.className} bg-slate-50 dark:bg-[#0f172a] transition-colors antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {/* Natural scroll without height locking */}
-          <div className="max-w-xl mx-auto relative w-full">
+          {/* ✅ আপনার রেফারেন্স অ্যাপের মতো মাস্টার র‍্যাপার */}
+          <div className="max-w-xl mx-auto min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col">
+            
             <TopHeader />
-            <main className="w-full">
+            
+            <main className="flex-1">
               {children}
             </main>
+            
             <InstallPrompt />
             <BottomNav />
+            
           </div>
         </ThemeProvider>
       </body>
