@@ -17,7 +17,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, 
+  userScalable: false,
+  viewportFit: "cover", // iOS-এর ফুল-স্ক্রিন এবং সেফ এরিয়া কভার করার জন্য
 };
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent", // স্ট্যাটাস বার ট্রান্সপারেন্ট করে ফুল-স্ক্রিন ফিল দেওয়ার জন্য
     title: "Focus BD",
   },
 };
@@ -38,17 +39,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      {/* ব্যাকগ্রাউন্ড ক্লাসগুলো সরাসরি body তে দেওয়া হয়েছে সাফারির গ্যাপ এড়ানোর জন্য */}
+      <body className={`${inter.className} bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-white transition-colors antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white transition-colors">
-            <div className="max-w-xl mx-auto relative overflow-x-hidden min-h-screen flex flex-col">
-              <TopHeader />
-              <main className="flex-1 pb-24">
-                {children}
-              </main>
-              <InstallPrompt />
-              <BottomNav />
-            </div>
+          <div className="max-w-xl mx-auto relative overflow-x-hidden min-h-[100dvh] flex flex-col">
+            <TopHeader />
+            
+            {/* বটম ন্যাভের সাথে ওভারল্যাপ এড়াতে safe-area-inset-bottom যুক্ত করা হয়েছে */}
+            <main className="flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+              {children}
+            </main>
+            
+            <InstallPrompt />
+            <BottomNav />
           </div>
         </ThemeProvider>
       </body>

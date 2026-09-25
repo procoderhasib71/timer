@@ -108,14 +108,13 @@ export default function PomodoroPage() {
   // ==============================
   if (currentScreen === 'home') {
     return (
-      <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-40 px-5 pt-8 transition-colors duration-300">
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-[calc(10rem+env(safe-area-inset-bottom))] px-5 pt-[calc(2rem+env(safe-area-inset-top))] transition-colors duration-300">
         <div className="mb-8">
           <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">Good Morning, Asif</h2>
           <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Ready to focus? 🔥</h1>
         </div>
         <div className="grid grid-cols-2 gap-4">
           
-          {/* Today Card - MINIMAL & SYNCED */}
           <button onClick={() => openTasks("Today")} className="col-span-2 rounded-3xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 p-5 text-left shadow-sm dark:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95">
             <div className="flex justify-between items-center mb-6">
               <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl text-indigo-500 dark:text-indigo-400">
@@ -149,7 +148,7 @@ export default function PomodoroPage() {
           </button>
         </div>
         
-        <div className="fixed bottom-28 left-0 right-0 flex justify-center z-50">
+        <div className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-50">
           <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
             <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100 transition-opacity" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
@@ -165,7 +164,7 @@ export default function PomodoroPage() {
   // ==============================
   if (currentScreen === 'tasks') {
     return (
-      <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-40 px-5 pt-6 animate-in fade-in slide-in-from-right-4 duration-300 transition-colors">
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-[calc(10rem+env(safe-area-inset-bottom))] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] animate-in fade-in slide-in-from-right-4 duration-300 transition-colors">
         <div className="flex items-center justify-between mb-8">
           <button onClick={() => setCurrentScreen('home')} className="p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><ArrowLeft size={24} /></button>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">{activeList}</h1>
@@ -196,7 +195,7 @@ export default function PomodoroPage() {
           ))}
         </div>
         
-        <div className="fixed bottom-28 left-0 right-0 flex justify-center z-50">
+        <div className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-50">
           <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
             <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
@@ -212,7 +211,7 @@ export default function PomodoroPage() {
   // ==============================
   return (
     <div 
-      className="fixed inset-0 z-[100] flex flex-col items-center pt-14 pb-12 bg-cover bg-center overflow-hidden h-[100dvh]" 
+      className="fixed inset-0 z-[100] flex flex-col items-center pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(3rem+env(safe-area-inset-bottom))] bg-cover bg-center overflow-hidden h-screen w-full" 
       style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }}
     >
       <div className={`absolute inset-0 bg-[#0f172a] transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-80' : 'opacity-40'}`} />
@@ -300,7 +299,7 @@ export default function PomodoroPage() {
 
       {/* COMPACT TOP MODAL: Quick Task Selector / Adder */}
       {showTaskSelector && (
-        <div className="fixed inset-0 z-[150] flex items-start justify-center pt-24 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 px-5">
+        <div className="fixed inset-0 z-[150] flex items-start justify-center pt-[calc(6rem+env(safe-area-inset-top))] bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 px-5">
           <div className="bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[60vh]">
             
             <div className="flex justify-between items-center mb-5">
