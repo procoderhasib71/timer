@@ -24,7 +24,6 @@ export default function PomodoroPage() {
   const [activeList, setActiveList] = useState("Today");
   const [showStopModal, setShowStopModal] = useState(false);
   
-  // Task selector modal
   const [showTaskSelector, setShowTaskSelector] = useState(false);
   const [quickNewTaskTitle, setQuickNewTaskTitle] = useState("");
   
@@ -44,7 +43,6 @@ export default function PomodoroPage() {
       const parsed = JSON.parse(savedCats);
       if (parsed.length > 0) setActiveCategory(parsed[0]); 
     }
-    // Set default active task if none selected
     if (tasks.length > 0 && !activeTask) {
       setActiveTask(tasks[0]);
     }
@@ -108,8 +106,9 @@ export default function PomodoroPage() {
   // ==============================
   if (currentScreen === 'home') {
     return (
-      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-[calc(10rem+env(safe-area-inset-bottom))] px-5 pt-[calc(2rem+env(safe-area-inset-top))] transition-colors duration-300">
-        <div className="mb-8">
+      // Changed to min-h-screen and massive pb-48 padding so content naturally scrolls above the floating button
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-48 px-5 pt-6 transition-colors duration-300">
+        <div className="mb-8 mt-2">
           <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">Good Morning, Asif</h2>
           <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Ready to focus? 🔥</h1>
         </div>
@@ -148,9 +147,10 @@ export default function PomodoroPage() {
           </button>
         </div>
         
-        <div className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-50">
-          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
-            <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100 transition-opacity" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
+        {/* Floating Timer Button - safely above bottom nav */}
+        <div className="fixed bottom-24 pb-[env(safe-area-inset-bottom)] left-0 right-0 flex justify-center z-40 pointer-events-none">
+          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group pointer-events-auto">
+            <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
             <div className="absolute inset-0 flex items-center justify-center"><span className="text-white text-2xl font-light tracking-wider drop-shadow-md">{currentMinutes}</span></div>
           </button>
@@ -164,8 +164,8 @@ export default function PomodoroPage() {
   // ==============================
   if (currentScreen === 'tasks') {
     return (
-      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-[calc(10rem+env(safe-area-inset-bottom))] px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] animate-in fade-in slide-in-from-right-4 duration-300 transition-colors">
-        <div className="flex items-center justify-between mb-8">
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-48 px-5 pt-6 animate-in fade-in slide-in-from-right-4 duration-300 transition-colors">
+        <div className="flex items-center justify-between mb-8 mt-2">
           <button onClick={() => setCurrentScreen('home')} className="p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><ArrowLeft size={24} /></button>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">{activeList}</h1>
           <button className="p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><MoreVertical size={20} /></button>
@@ -195,8 +195,8 @@ export default function PomodoroPage() {
           ))}
         </div>
         
-        <div className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-50">
-          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
+        <div className="fixed bottom-24 pb-[env(safe-area-inset-bottom)] left-0 right-0 flex justify-center z-40 pointer-events-none">
+          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group pointer-events-auto">
             <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
             <div className="absolute inset-0 flex items-center justify-center"><span className="text-white text-2xl font-light tracking-wider drop-shadow-md">{currentMinutes}</span></div>
@@ -211,7 +211,7 @@ export default function PomodoroPage() {
   // ==============================
   return (
     <div 
-      className="fixed inset-0 z-[100] flex flex-col items-center pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(3rem+env(safe-area-inset-bottom))] bg-cover bg-center overflow-hidden h-screen w-full" 
+      className="fixed inset-0 z-[100] flex flex-col items-center pt-14 pb-12 bg-cover bg-center overflow-hidden h-[100dvh] w-full" 
       style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }}
     >
       <div className={`absolute inset-0 bg-[#0f172a] transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-80' : 'opacity-40'}`} />
@@ -222,7 +222,6 @@ export default function PomodoroPage() {
           <ChevronDown size={28} strokeWidth={1} />
         </button>
         
-        {/* Clickable Task Pill */}
         <button 
           onClick={() => setShowTaskSelector(true)}
           className="bg-black/30 hover:bg-black/40 backdrop-blur-md border border-white/10 px-6 py-2.5 rounded-full flex items-center gap-3 text-white shadow-lg transition-colors cursor-pointer"
@@ -274,7 +273,7 @@ export default function PomodoroPage() {
       </div>
       
       {/* Action Buttons Container */}
-      <div className="mt-auto mb-10 z-20 w-full px-10 flex justify-center items-center gap-4 h-[60px] relative">
+      <div className="mt-auto mb-10 pb-[env(safe-area-inset-bottom)] z-20 w-full px-10 flex justify-center items-center gap-4 h-[60px] relative">
         {isInitialState && (
           <button onClick={toggleTimer} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] transition-all duration-500 ease-out active:scale-95 border bg-white/90 text-slate-900 border-transparent hover:bg-white animate-in fade-in zoom-in-95">
             Start to Focus
@@ -299,7 +298,7 @@ export default function PomodoroPage() {
 
       {/* COMPACT TOP MODAL: Quick Task Selector / Adder */}
       {showTaskSelector && (
-        <div className="fixed inset-0 z-[150] flex items-start justify-center pt-[calc(6rem+env(safe-area-inset-top))] bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 px-5">
+        <div className="fixed inset-0 z-[150] flex items-start justify-center pt-24 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 px-5">
           <div className="bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[60vh]">
             
             <div className="flex justify-between items-center mb-5">
@@ -312,7 +311,6 @@ export default function PomodoroPage() {
               </button>
             </div>
 
-            {/* Quick Add Input */}
             <div className="relative mb-4 shrink-0">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                 <Plus size={18} className="text-indigo-400" />
@@ -341,7 +339,6 @@ export default function PomodoroPage() {
               />
             </div>
 
-            {/* Existing Task List */}
             <div className="overflow-y-auto space-y-2 pr-1 scrollbar-hide flex-1">
               {tasks.length === 0 ? (
                 <p className="text-center text-slate-500 text-sm py-4">No tasks available.</p>
