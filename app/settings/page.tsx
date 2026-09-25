@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useTheme } from "next-themes"; // Theme import kora hoyeche
+import { useTheme } from "next-themes";
+import { auth, db } from "@/lib/firebaseClient";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 interface ListItemProps {
   icon: React.ElementType;
@@ -19,24 +22,67 @@ interface ListItemProps {
   toggleState?: boolean;
   onToggle?: () => void;
   href?: string;
-  onClick?: () => void; // Click handler add kora hoyeche
+  onClick?: () => void;
 }
 
 export default function SettingsPage() {
   const router = useRouter();
   
-  // Theme state
+  // Theme & User state
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [userName, setUserName] = useState("Student");
 
-  useEffect(() => setMounted(true), []);
-  
   // Toggle states
   const [autoStartNext, setAutoStartNext] = useState(false);
   const [autoStartBreak, setAutoStartBreak] = useState(true);
   const [disableBreak, setDisableBreak] = useState(false);
 
-  // Modern UI Helper Component
+  // ১. ইউজার প্রোফাইল ফেচ করা
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserName(data.displayName || data.name || "Student");
+        } else if (user.displayName) {
+          setUserName(user.displayName);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ২. LocalStorage থেকে অটোমেশন সেটিংস লোড করা
+  useEffect(() => {
+    const savedSettings = JSON.parse(localStorage.getItem("pomodoro_settings") || "{}");
+    if (savedSettings.autoStartNext !== undefined) setAutoStartNext(savedSettings.autoStartNext);
+    if (savedSettings.autoStartBreak !== undefined) setAutoStartBreak(savedSettings.autoStartBreak);
+    if (savedSettings.disableBreak !== undefined) setDisableBreak(savedSettings.disableBreak);
+    setMounted(true);
+  }, []);
+
+  // ৩. সেটিংস আপডেট করা এবং LocalStorage-এ সেভ করা
+  const updateSetting = (key: string, value: boolean) => {
+    const currentSettings = JSON.parse(localStorage.getItem("pomodoro_settings") || "{}");
+    localStorage.setItem("pomodoro_settings", JSON.stringify({ ...currentSettings, [key]: value }));
+  };
+
+  const handleToggleAutoNext = () => {
+    setAutoStartNext(!autoStartNext);
+    updateSetting("autoStartNext", !autoStartNext);
+  };
+  const handleToggleAutoBreak = () => {
+    setAutoStartBreak(!autoStartBreak);
+    updateSetting("autoStartBreak", !autoStartBreak);
+  };
+  const handleToggleDisableBreak = () => {
+    setDisableBreak(!disableBreak);
+    updateSetting("disableBreak", !disableBreak);
+  };
+
   const ListItem = ({ 
     icon: Icon, title, value, isToggle = false, toggleState = false, onToggle = () => {}, href = "", onClick 
   }: ListItemProps) => {
@@ -44,7 +90,7 @@ export default function SettingsPage() {
     const content = (
       <div 
         className="flex items-center justify-between py-4 px-1 group cursor-pointer"
-        onClick={!isToggle && !href ? onClick : undefined} // Row e click korle theme change hobe
+        onClick={!isToggle && !href ? onClick : undefined}
       >
         <div className="flex items-center gap-4">
           <div className="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800/50 text-indigo-500 dark:text-indigo-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors">
@@ -54,7 +100,6 @@ export default function SettingsPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Theme text dynamically change hobe */}
           {value && <span className="text-sm font-medium text-slate-600 dark:text-slate-500 bg-slate-200 dark:bg-slate-800/50 px-3 py-1 rounded-lg capitalize">{value}</span>}
           
           {isToggle ? (
@@ -95,7 +140,7 @@ export default function SettingsPage() {
 
       <div className="space-y-6">
         
-        {/* Modern Profile Banner */}
+        {/* Dynamic Profile Banner */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/60 dark:to-purple-900/40 border border-indigo-200 dark:border-indigo-500/20 p-1">
           <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-full blur-2xl"></div>
           
@@ -103,14 +148,18 @@ export default function SettingsPage() {
             <div className="flex items-center gap-4">
               <div className="relative">
                 <div className="w-14 h-14 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30 overflow-hidden">
-                  <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Asif&backgroundColor=b6e3f4" alt="Profile" className="w-full h-full object-cover" />
+                  {/* ইউজারের নামের প্রথম অংশ দিয়ে অটোমেটিক অ্যাভাটার জেনারেট হবে */}
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userName.split(' ')[0]}&backgroundColor=b6e3f4`} alt="Profile" className="w-full h-full object-cover" />
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center shadow-lg">
                   <Sparkles size={10} className="text-white" />
                 </div>
               </div>
               <div className="flex flex-col">
-                <span className="text-lg font-extrabold text-slate-800 dark:text-white tracking-tight">ASIF</span>
+                {/* ইউজারের আসল নাম ডায়নামিকালি দেখাবে */}
+                <span className="text-lg font-extrabold text-slate-800 dark:text-white tracking-tight uppercase truncate max-w-[150px]">
+                  {userName}
+                </span>
                 <span className="text-xs text-indigo-600 dark:text-indigo-300 font-medium">Pro Member • Synced</span>
               </div>
             </div>
@@ -136,20 +185,20 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-4 shadow-sm dark:shadow-none backdrop-blur-sm">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-1">Automation</h2>
           <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            <ListItem icon={PlayCircle} title="Auto-Start Pomodoro" isToggle toggleState={autoStartNext} onToggle={() => setAutoStartNext(!autoStartNext)} />
-            <ListItem icon={FastForward} title="Auto-Start Break" isToggle toggleState={autoStartBreak} onToggle={() => setAutoStartBreak(!autoStartBreak)} />
-            <ListItem icon={PauseCircle} title="Disable Breaks" isToggle toggleState={disableBreak} onToggle={() => setDisableBreak(!disableBreak)} />
+            <ListItem icon={PlayCircle} title="Auto-Start Pomodoro" isToggle toggleState={autoStartNext} onToggle={handleToggleAutoNext} />
+            <ListItem icon={FastForward} title="Auto-Start Break" isToggle toggleState={autoStartBreak} onToggle={handleToggleAutoBreak} />
+            <ListItem icon={PauseCircle} title="Disable Breaks" isToggle toggleState={disableBreak} onToggle={handleToggleDisableBreak} />
           </div>
         </div>
 
-        {/* System Card - Theme toggle added here */}
+        {/* System Card */}
         <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-4 shadow-sm dark:shadow-none backdrop-blur-sm mb-6">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-1">System</h2>
           <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
             <ListItem 
               icon={Palette} 
               title="Appearance" 
-              value={mounted ? theme : "dark"} 
+              value={mounted ? theme : "system"} 
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")} 
             />
             <ListItem icon={AppWindow} title="App Badge" />

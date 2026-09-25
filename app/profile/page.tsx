@@ -2,25 +2,52 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { User, ChevronDown, Save } from "lucide-react";
+import { User, Save, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { auth, db } from "@/lib/firebaseClient";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 const CATEGORIES = ["SSC", "HSC", "Admission", "Medical", "Varsity", "MBBS"];
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [name, setName] = useState("Asif"); 
-  const [gender, setGender] = useState("male");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(["HSC"]);
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  const [name, setName] = useState(""); 
+  const [gender, setGender] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isSaved, setIsSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // পেজ লোড হলে LocalStorage থেকে আগের সেভ করা ক্যাটাগরি আনবে
+  // ফায়ারবেস থেকে ইউজারের ডাটা ফেচ করা
   useEffect(() => {
-    const savedCats = localStorage.getItem("pomodoro_categories");
-    if (savedCats) {
-      setSelectedCategories(JSON.parse(savedCats));
-    }
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUserId(user.uid);
+        const userRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        
+        if (snap.exists()) {
+          const data = snap.data();
+          setName(data.displayName || data.name || "");
+          setGender(data.gender || "");
+          if (data.categories) {
+            setSelectedCategories(data.categories);
+          } else {
+            // ডাটাবেসে না থাকলে লোকাল স্টোরেজ চেক করবে
+            const savedCats = localStorage.getItem("pomodoro_categories");
+            if (savedCats) setSelectedCategories(JSON.parse(savedCats));
+          }
+        }
+      } else {
+        router.push('/login');
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   const toggleCategory = (cat: string) => {
     if (selectedCategories.includes(cat)) {
@@ -32,17 +59,34 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    // LocalStorage এ ক্যাটাগরি সেভ করছি যাতে ড্যাশবোর্ড এটা পড়তে পারে
-    localStorage.setItem("pomodoro_categories", JSON.stringify(selectedCategories));
-    setIsSaved(true);
-    
-    // ১ সেকেন্ড পর ড্যাশবোর্ডে নিয়ে যাবে
-    setTimeout(() => {
-      router.push("/");
-    }, 1000);
+    if (!userId) return;
+
+    try {
+      // ১. ফায়ারবেসে আপডেট করা
+      await updateDoc(doc(db, 'users', userId), {
+        displayName: name,
+        name: name,
+        gender: gender,
+        categories: selectedCategories
+      });
+
+      // ২. লোকাল স্টোরেজে আপডেট করা (যাতে ড্যাশবোর্ড দ্রুত পড়তে পারে)
+      localStorage.setItem("pomodoro_categories", JSON.stringify(selectedCategories));
+      
+      setIsSaved(true);
+      setTimeout(() => {
+        router.push("/");
+      }, 1000);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
   };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0f172a]"><p className="text-slate-500">Loading profile...</p></div>;
+  }
 
   return (
     <div className="px-5 pt-6 pb-24">
@@ -54,11 +98,25 @@ export default function ProfilePage() {
       <form onSubmit={handleSaveProfile} className="space-y-6">
         <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700/50 space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Basic Info</h2>
+          
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Full Name</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500"><User size={18} /></div>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-1 outline-none transition-all" required />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ml-1">Gender</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500"><User size={18} /></div>
+              <select value={gender} onChange={(e) => setGender(e.target.value)} className={`w-full pl-11 pr-10 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl text-sm font-medium outline-none appearance-none focus:border-indigo-500 focus:ring-1 transition-all ${!gender ? "text-slate-500" : "text-slate-900 dark:text-white"}`} required>
+                <option value="" disabled>Select Gender</option>
+                <option value="male" className="text-slate-900 dark:text-white">Male</option>
+                <option value="female" className="text-slate-900 dark:text-white">Female</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-500"><ChevronDown size={18} /></div>
             </div>
           </div>
         </div>
