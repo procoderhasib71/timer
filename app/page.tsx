@@ -108,40 +108,49 @@ export default function PomodoroPage() {
   // ==============================
   if (currentScreen === 'home') {
     return (
-      <div className="min-h-screen bg-[#0f172a] text-slate-300 pb-32 px-5 pt-8">
+      <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-40 px-5 pt-8 transition-colors duration-300">
         <div className="mb-8">
-          <h2 className="text-sm font-bold tracking-wider text-indigo-400 uppercase mb-1">Good Morning, Asif</h2>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Ready to focus? 🔥</h1>
+          <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">Good Morning, Asif</h2>
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Ready to focus? 🔥</h1>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <button onClick={() => openTasks("Today")} className="col-span-2 relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 p-5 text-left shadow-lg shadow-indigo-900/50 hover:scale-[1.02] transition-transform active:scale-95">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            <div className="relative z-10 flex justify-between items-center mb-6">
-              <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm text-white"><Sun size={24} /></div>
-              <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white backdrop-blur-sm">{pendingTasksCount} Tasks left</span>
+          
+          {/* Today Card - MINIMAL & SYNCED */}
+          <button onClick={() => openTasks("Today")} className="col-span-2 rounded-3xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 p-5 text-left shadow-sm dark:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95">
+            <div className="flex justify-between items-center mb-6">
+              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl text-indigo-500 dark:text-indigo-400">
+                <Sun size={24} />
+              </div>
+              <span className="bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                {pendingTasksCount} Tasks left
+              </span>
             </div>
-            <div className="relative z-10">
-              <h3 className="text-2xl font-bold text-white mb-1">Today</h3>
-              <p className="text-indigo-100 text-sm opacity-90">Estimated time: {pendingTasksCount * 25}m</p>
+            <div>
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">Today</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Estimated time: {pendingTasksCount * 25}m</p>
             </div>
           </button>
-          <button onClick={() => openTasks("This Week")} className="col-span-1 bg-slate-800/60 border border-slate-700/50 rounded-3xl p-5 text-left hover:bg-slate-800 transition-colors active:scale-95">
-            <Calendar size={22} className="text-blue-400 mb-4" />
-            <h3 className="text-lg font-bold text-white mb-1">This Week</h3>
-            <p className="text-slate-400 text-xs">12 Planned</p>
+          
+          <button onClick={() => openTasks("This Week")} className="col-span-1 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-5 text-left shadow-sm dark:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95">
+            <Calendar size={22} className="text-blue-500 dark:text-blue-400 mb-4" />
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">This Week</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">12 Planned</p>
           </button>
-          <button onClick={() => openTasks("Planned")} className="col-span-1 bg-slate-800/60 border border-slate-700/50 rounded-3xl p-5 text-left hover:bg-slate-800 transition-colors active:scale-95">
-            <CalendarDays size={22} className="text-teal-400 mb-4" />
-            <h3 className="text-lg font-bold text-white mb-1">Planned</h3>
-            <p className="text-slate-400 text-xs">8 Tasks</p>
+          
+          <button onClick={() => openTasks("Planned")} className="col-span-1 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-5 text-left shadow-sm dark:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95">
+            <CalendarDays size={22} className="text-teal-500 dark:text-teal-400 mb-4" />
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">Planned</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">8 Tasks</p>
           </button>
-          <button onClick={() => openTasks("Completed")} className="col-span-2 flex items-center justify-between bg-slate-800/40 border border-slate-700/50 rounded-2xl p-4 mt-2 hover:bg-slate-800/60 transition-colors active:scale-95">
-            <div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400"><CheckCircle2 size={20} /></div><span className="font-bold text-slate-200">Completed</span></div>
-            <span className="text-lg font-extrabold text-slate-500">{completedTasksCount}</span>
+          
+          <button onClick={() => openTasks("Completed")} className="col-span-2 flex items-center justify-between bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 mt-2 shadow-sm dark:shadow-none hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors active:scale-95">
+            <div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><CheckCircle2 size={20} /></div><span className="font-bold text-slate-700 dark:text-slate-200">Completed</span></div>
+            <span className="text-lg font-extrabold text-slate-400 dark:text-slate-500">{completedTasksCount}</span>
           </button>
         </div>
-        <div className="fixed bottom-24 left-0 right-0 flex justify-center z-50">
-          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 hover:shadow-[0_8px_40px_rgba(0,0,0,0.7)] transition-all relative group">
+        
+        <div className="fixed bottom-28 left-0 right-0 flex justify-center z-50">
+          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
             <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100 transition-opacity" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
             <div className="absolute inset-0 flex items-center justify-center"><span className="text-white text-2xl font-light tracking-wider drop-shadow-md">{currentMinutes}</span></div>
@@ -156,31 +165,39 @@ export default function PomodoroPage() {
   // ==============================
   if (currentScreen === 'tasks') {
     return (
-      <div className="min-h-screen bg-[#0f172a] text-slate-300 pb-32 px-5 pt-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 pb-40 px-5 pt-6 animate-in fade-in slide-in-from-right-4 duration-300 transition-colors">
         <div className="flex items-center justify-between mb-8">
-          <button onClick={() => setCurrentScreen('home')} className="p-2 -ml-2 text-slate-400 hover:text-white transition-colors"><ArrowLeft size={24} /></button>
-          <h1 className="text-lg font-bold text-white">{activeList}</h1>
-          <button className="p-2 -mr-2 text-slate-400 hover:text-white transition-colors"><MoreVertical size={20} /></button>
+          <button onClick={() => setCurrentScreen('home')} className="p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><ArrowLeft size={24} /></button>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white">{activeList}</h1>
+          <button className="p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><MoreVertical size={20} /></button>
         </div>
         <div className="relative mb-6">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Plus size={20} className="text-indigo-400" /></div>
-          <input type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} onKeyDown={handleAddTask} placeholder="Add a new task & press Enter..." className="w-full pl-12 pr-4 py-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl text-sm font-medium text-white placeholder-slate-500 focus:border-indigo-500 focus:bg-slate-800 outline-none transition-all" />
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Plus size={20} className="text-indigo-500 dark:text-indigo-400" /></div>
+          <input 
+            type="text" 
+            value={newTaskTitle} 
+            onChange={(e) => setNewTaskTitle(e.target.value)} 
+            onKeyDown={handleAddTask} 
+            placeholder="Add a new task & press Enter..." 
+            className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-indigo-500 focus:bg-slate-50 dark:focus:bg-slate-800 shadow-sm dark:shadow-none outline-none transition-all" 
+          />
         </div>
         <div className="space-y-3">
-          {tasks.length === 0 ? <p className="text-center text-slate-500 mt-10 text-sm">No tasks added yet. Add one above!</p> : tasks.map((task) => (
-            <div key={task.id} onClick={() => handleTaskClick(task)} className={`flex items-start gap-4 p-4 border rounded-2xl cursor-pointer group transition-colors ${task.completed ? 'bg-slate-800/20 border-slate-800/50 opacity-60' : 'bg-slate-800/30 border-slate-700/30 hover:bg-slate-800/50'}`}>
-              <button onClick={(e) => toggleTaskComplete(task.id, e)} className={`mt-0.5 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-500 hover:text-indigo-400'}`}>
+          {tasks.length === 0 ? <p className="text-center text-slate-400 dark:text-slate-500 mt-10 text-sm">No tasks added yet. Add one above!</p> : tasks.map((task) => (
+            <div key={task.id} onClick={() => handleTaskClick(task)} className={`flex items-start gap-4 p-4 border rounded-2xl cursor-pointer group transition-colors shadow-sm dark:shadow-none ${task.completed ? 'bg-slate-100 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800/50 opacity-60' : 'bg-white dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
+              <button onClick={(e) => toggleTaskComplete(task.id, e)} className={`mt-0.5 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
                 {task.completed ? <CheckCircle2 size={22} /> : <Circle size={22} strokeWidth={1.5} />}
               </button>
               <div className="flex-1">
-                <h3 className={`text-sm font-medium transition-colors ${task.completed ? 'text-slate-500 line-through' : 'text-slate-200 group-hover:text-white'}`}>{task.title}</h3>
-                <div className="flex items-center gap-3 mt-2 text-[11px] font-bold uppercase tracking-wider text-slate-500"><span className="flex items-center gap-1 text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md"><Clock size={12} /> {task.duration}m</span><span>{task.category}</span></div>
+                <h3 className={`text-sm font-medium transition-colors ${task.completed ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-white'}`}>{task.title}</h3>
+                <div className="flex items-center gap-3 mt-2 text-[11px] font-bold uppercase tracking-wider text-slate-500"><span className="flex items-center gap-1 text-indigo-500 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-500/10 px-2 py-0.5 rounded-md"><Clock size={12} /> {task.duration}m</span><span>{task.category}</span></div>
               </div>
             </div>
           ))}
         </div>
-        <div className="fixed bottom-24 left-0 right-0 flex justify-center z-50">
-          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
+        
+        <div className="fixed bottom-28 left-0 right-0 flex justify-center z-50">
+          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group">
             <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
             <div className="absolute inset-0 flex items-center justify-center"><span className="text-white text-2xl font-light tracking-wider drop-shadow-md">{currentMinutes}</span></div>
@@ -195,7 +212,7 @@ export default function PomodoroPage() {
   // ==============================
   return (
     <div 
-      className="fixed inset-0 z-[100] flex flex-col items-center pt-14 pb-12 bg-cover bg-center overflow-hidden" 
+      className="fixed inset-0 z-[100] flex flex-col items-center pt-14 pb-12 bg-cover bg-center overflow-hidden h-[100dvh]" 
       style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }}
     >
       <div className={`absolute inset-0 bg-[#0f172a] transition-opacity duration-1000 ease-in-out ${isActive ? 'opacity-80' : 'opacity-40'}`} />
@@ -315,9 +332,9 @@ export default function PomodoroPage() {
                       completed: false
                     };
                     setTasks([newTask, ...tasks]);
-                    setActiveTask(newTask); // Set the newly created task as active
+                    setActiveTask(newTask); 
                     setQuickNewTaskTitle("");
-                    setShowTaskSelector(false); // Close the modal
+                    setShowTaskSelector(false); 
                   }
                 }}
                 placeholder="Type new task & press Enter..." 
