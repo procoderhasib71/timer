@@ -8,6 +8,10 @@ import {
   Plus, MoreVertical, Circle, Clock
 } from "lucide-react";
 import { useTimer, MODES } from "@/hooks/useTimer";
+// Firebase Imports
+import { auth, db } from "@/lib/firebaseClient";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, onSnapshot, doc, setDoc, updateDoc, query, orderBy } from "firebase/firestore";
 
 const MOUNTAIN_BG = "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1080&auto=format&fit=crop";
 
@@ -17,6 +21,7 @@ interface Task {
   category: string;
   duration: number;
   completed: boolean;
+  createdAt?: string;
 }
 
 export default function PomodoroPage() {
@@ -30,35 +35,94 @@ export default function PomodoroPage() {
   const { mode, timeLeft, isActive, toggleTimer, resetTimer } = useTimer("pomodoro");
   const [activeCategory, setActiveCategory] = useState("HSC"); 
 
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: 'Complete Biology Chapter 4', category: 'HSC', duration: 25, completed: false }, 
-    { id: '2', title: 'Physics Math Solve', category: 'Admission', duration: 25, completed: false },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  
+  // Authentication State
+  const [userId, setUserId] = useState<string | null>(null);
 
+  // ফায়ারবেস থেকে রিয়েল-টাইম টাস্ক ফেচ করা
   useEffect(() => {
-    const savedCats = localStorage.getItem("pomodoro_categories");
-    if (savedCats) {
-      const parsed = JSON.parse(savedCats);
-      if (parsed.length > 0) setActiveCategory(parsed[0]); 
-    }
-    if (tasks.length > 0 && !activeTask) {
-      setActiveTask(tasks[0]);
-    }
-  }, []);
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+        const tasksRef = collection(db, 'users', user.uid, 'tasks');
+        const q = query(tasksRef, orderBy('createdAt', 'desc'));
+        
+        const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+          const fetchedTasks: Task[] = [];
+          snapshot.forEach((doc) => {
+            fetchedTasks.push({ id: doc.id, ...doc.data() } as Task);
+          });
+          setTasks(fetchedTasks);
+          
+          if (fetchedTasks.length > 0 && !activeTask) {
+            setActiveTask(fetchedTasks[0]);
+          }
+        });
 
-  const handleAddTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        return () => unsubscribeSnapshot();
+      } else {
+        setUserId(null);
+        setTasks([]); // ইউজার লগআউট করলে টাস্ক ক্লিয়ার হয়ে যাবে
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, [activeTask]);
+
+  // নতুন টাস্ক ফায়ারবেসে সেভ করা
+  const handleAddTask = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && newTaskTitle.trim() !== '') {
       const newTask: Task = {
         id: Date.now().toString(),
         title: newTaskTitle,
         category: activeCategory, 
         duration: 25,
-        completed: false
+        completed: false,
+        createdAt: new Date().toISOString()
       };
+
+      // UI-তে সাথে সাথে আপডেট দেখানোর জন্য (Optimistic Update)
       setTasks([newTask, ...tasks]);
       setNewTaskTitle("");
+
+      // ফায়ারবেসে পুশ করা
+      if (userId) {
+        try {
+          await setDoc(doc(db, 'users', userId, 'tasks', newTask.id), newTask);
+        } catch (error) {
+          console.error("Error adding task: ", error);
+        }
+      }
+    }
+  };
+
+  // কুইক টাস্ক ফায়ারবেসে সেভ করা
+  const handleQuickAddTask = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && quickNewTaskTitle.trim() !== '') {
+      const newTask: Task = {
+        id: Date.now().toString(),
+        title: quickNewTaskTitle,
+        category: activeCategory, 
+        duration: 25,
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+
+      setTasks([newTask, ...tasks]);
+      setActiveTask(newTask); 
+      setQuickNewTaskTitle("");
+      setShowTaskSelector(false); 
+
+      if (userId) {
+        try {
+          await setDoc(doc(db, 'users', userId, 'tasks', newTask.id), newTask);
+        } catch (error) {
+          console.error("Error adding quick task: ", error);
+        }
+      }
     }
   };
 
@@ -67,9 +131,22 @@ export default function PomodoroPage() {
     setCurrentScreen('timer');
   };
 
-  const toggleTaskComplete = (taskId: string, e: React.MouseEvent) => {
+  // টাস্ক কমপ্লিট স্ট্যাটাস ফায়ারবেসে আপডেট করা
+  const toggleTaskComplete = async (task: Task, e: React.MouseEvent) => {
     e.stopPropagation(); 
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+    
+    // Optimistic Update
+    setTasks(tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t));
+
+    if (userId) {
+      try {
+        await updateDoc(doc(db, 'users', userId, 'tasks', task.id), {
+          completed: !task.completed
+        });
+      } catch (error) {
+        console.error("Error updating task: ", error);
+      }
+    }
   };
 
   const confirmStopTimer = () => {
@@ -146,10 +223,9 @@ export default function PomodoroPage() {
           </button>
         </div>
         
-        {/* Fixed Timer Button positioned nicely above the Bottom Nav */}
         <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-40 pointer-events-none">
           <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full overflow-hidden border-[1.5px] border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all relative group pointer-events-auto">
-            <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
+            <div className="absolute inset-0 bg-cover bg-center opacity-90 group-hover:opacity-100 transition-opacity" style={{ backgroundImage: `url("${MOUNTAIN_BG}")` }} />
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
             <div className="absolute inset-0 flex items-center justify-center"><span className="text-white text-2xl font-light tracking-wider drop-shadow-md">{currentMinutes}</span></div>
           </button>
@@ -183,7 +259,7 @@ export default function PomodoroPage() {
         <div className="space-y-3">
           {tasks.length === 0 ? <p className="text-center text-slate-400 dark:text-slate-500 mt-10 text-sm">No tasks added yet. Add one above!</p> : tasks.map((task) => (
             <div key={task.id} onClick={() => handleTaskClick(task)} className={`flex items-start gap-4 p-4 border rounded-2xl cursor-pointer group transition-colors shadow-sm dark:shadow-none ${task.completed ? 'bg-slate-100 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800/50 opacity-60' : 'bg-white dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/30 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
-              <button onClick={(e) => toggleTaskComplete(task.id, e)} className={`mt-0.5 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
+              <button onClick={(e) => toggleTaskComplete(task, e)} className={`mt-0.5 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
                 {task.completed ? <CheckCircle2 size={22} /> : <Circle size={22} strokeWidth={1.5} />}
               </button>
               <div className="flex-1">
@@ -318,21 +394,7 @@ export default function PomodoroPage() {
                 type="text" 
                 value={quickNewTaskTitle}
                 onChange={(e) => setQuickNewTaskTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && quickNewTaskTitle.trim() !== '') {
-                    const newTask: Task = {
-                      id: Date.now().toString(),
-                      title: quickNewTaskTitle,
-                      category: activeCategory, 
-                      duration: 25,
-                      completed: false
-                    };
-                    setTasks([newTask, ...tasks]);
-                    setActiveTask(newTask); 
-                    setQuickNewTaskTitle("");
-                    setShowTaskSelector(false); 
-                  }
-                }}
+                onKeyDown={handleQuickAddTask}
                 placeholder="Type new task & press Enter..." 
                 className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-medium text-white placeholder-slate-500 focus:border-indigo-500 focus:bg-white/10 outline-none transition-all"
               />

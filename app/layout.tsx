@@ -44,8 +44,8 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} bg-slate-50 dark:bg-[#0f172a] transition-colors antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {/* ✅ আপনার রেফারেন্স অ্যাপের মতো মাস্টার র‍্যাপার */}
-          <div className="max-w-xl mx-auto min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col">
+          {/* ✅ ডেস্কটপের জন্য রেস্পন্সিভ উইডথ অ্যাড করা হয়েছে */}
+          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl">
             
             <TopHeader />
             

@@ -18,27 +18,36 @@ export default function BottomNav() {
 
   return (
     <nav 
-      // isAuthPage সত্য হলে 'hidden' ক্লাস অ্যাড হবে, নাহলে 'block'
-      className={`fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-safe ${
+      // ১. bottom-[calc(1rem+...)] দিয়ে নিচ থেকে ভাসিয়ে দেওয়া হয়েছে।
+      // ২. w-[92%] max-w-[400px] দিয়ে সাইড থেকে গ্যাপ রাখা হয়েছে ফ্লোটিং লুকের জন্য।
+      // ৩. rounded-2xl দিয়ে কোণাগুলো সুন্দর গোল করা হয়েছে।
+      // ৪. bg-white/30 এবং backdrop-blur-xl দিয়ে একদম ট্রান্সপারেন্ট গ্লাস ইফেক্ট দেওয়া হয়েছে।
+      className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[92%] max-w-[400px] z-50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 rounded-2xl shadow-lg shadow-slate-200/20 dark:shadow-black/40 ${
         isAuthPage ? "hidden" : "block"
       }`}
     >
-      <div className="max-w-xl mx-auto flex items-center justify-around p-3 pb-6 sm:pb-3">
+      {/* হাইট কমানোর জন্য py-1.5 দেওয়া হয়েছে */}
+      <div className="flex items-center justify-around px-2 py-1.5">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
-            <Link key={item.label} href={item.href} className="flex flex-col items-center gap-1 p-2">
-              <div className={`p-2 rounded-xl transition-all ${
-                isActive 
-                  ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}>
-                <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              </div>
-              <span className={`text-[10px] font-bold ${
+            <Link 
+              key={item.label} 
+              href={item.href} 
+              className="flex flex-col items-center gap-1 p-1 min-w-[4rem] transition-all active:scale-95"
+            >
+              <div className={`transition-colors duration-300 ${
                 isActive 
                   ? "text-indigo-600 dark:text-indigo-400" 
-                  : "text-slate-500 dark:text-slate-400"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}>
+                {/* আইকনের সাইজ ২২ করে হাইট আরও কমানো হয়েছে */}
+                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+              </div>
+              <span className={`text-[10px] tracking-wide transition-colors duration-300 ${
+                isActive 
+                  ? "font-bold text-indigo-600 dark:text-indigo-400" 
+                  : "font-medium text-slate-500 dark:text-slate-400"
               }`}>
                 {item.label}
               </span>
