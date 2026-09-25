@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* next-themes এর class-based ডার্ক মোড সাপোর্ট করার জন্য এই লাইনটি অ্যাড করা হলো */
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
