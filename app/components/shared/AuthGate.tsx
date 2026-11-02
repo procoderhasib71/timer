@@ -12,13 +12,14 @@ import { Account, fetchAccount } from '@/lib/admcqAccount';
 // যাচাই শেষ না হওয়া পর্যন্ত শুধু spinner, তাই ভুল পেজ এক ঝলকও দেখা যায় না।
 // AdMCQ এ পৌঁছানো না গেলে আটকাই না (টাইমার চলুক)।
 
-type Ctx = { account: Account | null; setAccount: (a: Account) => void };
-const AccountContext = createContext<Ctx>({ account: null, setAccount: () => undefined });
+type Ctx = { account: Account | null; setAccount: (a: Account) => void; botLinked: boolean };
+const AccountContext = createContext<Ctx>({ account: null, setAccount: () => undefined, botLinked: false });
 export const useAccount = () => useContext(AccountContext);
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [account, setAccount] = useState<Account | null>(null);
+  const [botLinked, setBotLinked] = useState(false);
   const [state, setState] = useState<'checking' | 'out' | 'needProfile' | 'ok'>('checking');
 
   useEffect(() => onAuthStateChanged(auth, async (user) => {
@@ -26,6 +27,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       const r = await fetchAccount(auth);
       setAccount(r.account);
+      setBotLinked(r.botLinked);
       setState(r.complete.full ? 'ok' : 'needProfile');
     } catch {
       setState('ok');
@@ -40,7 +42,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     window.location.replace(target || '/');
   }, [wrongPage, target]);
 
-  const value = { account, setAccount: (a: Account) => { setAccount(a); setState('ok'); } };
+  const value = { account, setAccount: (a: Account) => { setAccount(a); setState('ok'); }, botLinked };
   if (state === 'checking' || wrongPage) {
     return (
       <div className="min-h-screen flex items-center justify-center">

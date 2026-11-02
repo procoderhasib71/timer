@@ -7,6 +7,7 @@ import { User, Save, School, Loader2 } from "lucide-react";
 import { auth } from "@/lib/firebaseClient";
 import { saveAccount } from "@/lib/admcqAccount";
 import { useAccount } from "@/app/components/shared/AuthGate";
+import BotLink from "@/app/components/shared/BotLink";
 
 // প্রোফাইল AdMCQ আর Money এর সাথে এক (AdMCQ এর ডাটাবেসে থাকে); অন্য জায়গায় পূরণ করা থাকলে এখানে আগে থেকেই বসানো।
 const LEVELS: [string, string][] = [
@@ -21,7 +22,7 @@ const chip = (on: boolean) => `px-4 py-2.5 rounded-xl text-sm font-bold transiti
   : "bg-slate-100 text-slate-500 dark:bg-slate-900/80 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"}`;
 
 export default function ProfilePage() {
-  const { account, setAccount } = useAccount();
+  const { account, setAccount, botLinked } = useAccount();
   const [f, setF] = useState({
     name: account?.name || auth.currentUser?.displayName || "",
     gender: account?.gender || "",
@@ -102,6 +103,12 @@ export default function ProfilePage() {
           {busy ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} {firstTime ? "Save and continue" : "Save Profile Changes"}
         </button>
       </form>
+
+      {!firstTime && (
+        <div className={`${box} mt-6`}>
+          <BotLink auth={auth} linked={botLinked} text="Get a Telegram message when your timer ends, even if this app is closed. Same account as AdMCQ." />
+        </div>
+      )}
     </div>
   );
 }

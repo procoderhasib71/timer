@@ -10,7 +10,9 @@ type Saved = { mode: TimerMode; endAt: number | null; timeLeft: number; initialD
 
 const secondsUntil = (endAt: number) => Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
 
-export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: TimerMode) => void) {
+// onSchedule: টাইমার চালু হলে কখন শেষ হবে (endAt), থামলে/শেষ হলে null — বটকে জানানোর জন্য
+export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: TimerMode) => void,
+                         onSchedule?: (endAt: number | null, mode: TimerMode) => void) {
   const [mode, setMode] = useState<TimerMode>(initialMode);
   const [initialDuration, setInitialDuration] = useState(25 * 60);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
@@ -21,6 +23,9 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   const finishedFor = useRef<number | null>(null);   // একই endAt এর জন্য "শেষ" একবারই
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
+  const scheduleRef = useRef(onSchedule);
+  scheduleRef.current = onSchedule;
+  const lastScheduled = useRef<number | null>(null);   // শুরুতে null, তাই খোলার সময় অকারণে "বাতিল" পাঠাই না
   const isActive = endAt !== null;
 
   const getSettings = useCallback(() => {
@@ -63,6 +68,12 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
     const saved: Saved = { mode, endAt, timeLeft, initialDuration };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   }, [ready, mode, endAt, timeLeft, initialDuration]);
+
+  useEffect(() => {
+    if (!ready || endAt === lastScheduled.current) return;
+    lastScheduled.current = endAt;
+    scheduleRef.current?.(endAt, mode);
+  }, [ready, endAt, mode]);
 
   // সেটিংস বদলালে: টাইমার একদম শুরুর অবস্থায় থাকলেই নতুন সময় বসাই (চলমান বা থামানো টাইমারে হাত দিই না)
   const live = useRef({ isActive, timeLeft, initialDuration, mode });

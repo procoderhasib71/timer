@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
 import { useAccount } from "@/app/components/shared/AuthGate";
+import { botTimer } from "@/lib/admcqAccount";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
@@ -69,13 +70,15 @@ export default function PomodoroPage() {
     else notify("Break is over ⏰", "Ready for the next focus session?");
   };
 
+  const { account, botLinked } = useAccount();
   // Timer Hook
-  const { mode, timeLeft, isActive, toggleTimer, resetTimer, adjustTime, initialDuration, changeMode, getSettings, restored } = useTimer("pomodoro", handleTimerFinish);
+  const { mode, timeLeft, isActive, toggleTimer, resetTimer, adjustTime, initialDuration, changeMode, getSettings, restored } = useTimer("pomodoro", handleTimerFinish,
+    // বটে যুক্ত থাকলে টাইমার শেষে Telegram এ মেসেজ (অ্যাপ বন্ধ থাকলেও); অ্যাপেই শেষ হলে বাতিল, যাতে দুবার না বাজে
+    (endAt, m) => { if (botLinked) botTimer(auth, endAt, m); });
   const [activeCategory, setActiveCategory] = useState("HSC");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const { account } = useAccount();
   const userName = (account?.name || auth.currentUser?.displayName || "").split(" ")[0];
   const [greeting, setGreeting] = useState("Hello");
 
