@@ -37,9 +37,23 @@ export const saveAccount = async (auth: Auth, fields: Partial<Omit<Account, 'pho
 export const botLinkUrl = async (auth: Auth, app: BotApp) =>
   `${BOT_URL}?start=${(await call(auth, '/api/me/link-code', { method: 'POST', body: JSON.stringify({ app }) })).code}`;
 
-/** Pomodoro টাইমার কখন শেষ হবে বটকে জানায় (endAt null = বাতিল); বটে যুক্ত না থাকলে কিছু হয় না */
-export const botTimer = (auth: Auth, endAt: number | null, mode: string) =>
-  call(auth, '/api/bot/timer', { method: 'POST', body: JSON.stringify({ endAt, mode }) }).catch(() => undefined);
+// অ্যাপ আর বট একই টাইমার দেখে: অ্যাপ বদলালে push, বটের বদল দেখতে pull (বটে যুক্ত না থাকলে কিছু হয় না)
+export type TimerPush = {
+  endAt: number | null; mode: string; timeLeft: number; initial: number; taskId: string | null; taskTitle: string | null;
+  lengths: { focus: number; short: number; long: number };
+};
+export type RemoteTimer = { mode: string; end_at: number | null; time_left: number; initial: number; task_id: string | null; source: string; updated_at: number };
+export type BotSession = { id: number; minutes: number; mode: string; task_id: string | null; task_title: string | null; completed: number; ended_at: number };
+
+/** টাইমারের বদল বটকে জানাই (শেষ হলে Telegram এ মেসেজও এখান থেকে); ফেরত দেয় কখন রাখা হলো */
+export const botTimerPush = async (auth: Auth, s: TimerPush): Promise<number | null> =>
+  (await call(auth, '/api/bot/timer', { method: 'POST', body: JSON.stringify(s) }).catch(() => null))?.updatedAt ?? null;
+
+/** বট থেকে করা বদলসহ এখনকার টাইমার, আর বটের চালানো যে সেশন এখনো হিসাবে ওঠেনি */
+export const botTimerPull = async (auth: Auth): Promise<{ timer: RemoteTimer | null; sessions: BotSession[] } | null> => {
+  const d = await call(auth, '/api/bot/timer', { method: 'POST', body: JSON.stringify({ action: 'pull' }) }).catch(() => null);
+  return d?.linked ? { timer: d.timer ?? null, sessions: d.sessions || [] } : null;
+};
 
 /** Pomodoro টাস্কের রিমাইন্ডার বটে রাখে (time null = বাতিল); Pomodoro বটে যুক্ত না থাকলে কিছু হয় না */
 export const botReminder = (auth: Auth, r: { ref: string; title: string; time: string | null; day: 'today' | 'tomorrow'; repeat: string }) =>

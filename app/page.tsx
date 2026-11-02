@@ -9,14 +9,14 @@ import {
   
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
-import { useTimer, TimerMode } from "@/hooks/useTimer";
+import { useTimer, TimerMode, TimerState } from "@/hooks/useTimer";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useAccountSheet } from "@/app/components/account/AccountSheet";
-import { botReminder, botTimer } from "@/lib/admcqAccount";
+import { BotSession, botReminder, botTimerPull, botTimerPush } from "@/lib/admcqAccount";
 import { addMinutes, ensureEntry } from "@/lib/leaderboard";
 import { useLang } from "@/lib/i18n";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
@@ -111,8 +111,12 @@ export default function PomodoroPage() {
   const router = useRouter();
   const sheet = useAccountSheet();
 
-  // সময় শেষ: শব্দ, কাঁপুনি আর নোটিফিকেশন (অ্যাপ পেছনে থাকলেও দেখা যায়)
-  const handleTimerFinish = (finishedMode: TimerMode) => {
+  // সময় শেষ: শব্দ, কাঁপুনি আর নোটিফিকেশন (অ্যাপ পেছনে থাকলেও দেখা যায়)।
+  // অনেক পরে টের পেলে (অ্যাপ বন্ধ ছিল) বাজাই না, বিরতিও নিজে শুরু করি না; বট আগেই Telegram এ জানিয়েছে
+  const lateFinish = useRef(false);
+  const handleTimerFinish = (finishedMode: TimerMode, lateMs = 0) => {
+    lateFinish.current = lateMs > 2 * 60 * 1000;
+    if (lateFinish.current) return;
     const settings = JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
     playRingtone(settings.ringtone || "Default");
     vibrate();
@@ -122,11 +126,13 @@ export default function PomodoroPage() {
 
   const { account, botLinked } = useAccount();
   // Timer Hook
-  const { mode, timeLeft, isActive, toggleTimer, adjustTime, initialDuration, changeMode, getSettings, restored } = useTimer("pomodoro", handleTimerFinish,
-    // বটে যুক্ত থাকলে টাইমার শেষে Telegram এ মেসেজ (অ্যাপ বন্ধ থাকলেও); অ্যাপেই শেষ হলে বাতিল, যাতে দুবার না বাজে
-    (endAt, m) => { if (botLinked) botTimer(auth, endAt, m); });
+  const { mode, timeLeft, isActive, toggleTimer, adjustTime, initialDuration, changeMode, getSettings, restored, applyRemote } = useTimer("pomodoro", handleTimerFinish,
+    // বটে যুক্ত থাকলে বটও একই টাইমার দেখে, আর শেষে Telegram এ মেসেজ দেয় (অ্যাপ বন্ধ থাকলেও); অ্যাপেই শেষ হলে বাতিল, যাতে দুবার না বাজে
+    (s) => pushTimer(s));
   const [activeCategory, setActiveCategory] = useState("HSC");
   const [tasks, setTasks] = useState<Task[]>([]);
+  const tasksRef = useRef<Task[]>([]);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const userName = (account?.name || auth.currentUser?.displayName || "").split(" ")[0];
@@ -295,17 +301,17 @@ export default function PomodoroPage() {
         
         if (mode === 'pomodoro' && settings.disableBreak) {
           // বিরতি বন্ধ: সরাসরি পরের পোমোডোরো
-          changeMode('pomodoro', settings.autoStartNext ?? false);
+          changeMode('pomodoro', (settings.autoStartNext ?? false) && !lateFinish.current);
         } else if (mode === 'pomodoro') {
           const currentCount = (activeTask?.completedPomodoros || 0) + 1;
           const longBreakInterval = settings.longBreakInterval || 4;
           const nextMode = (currentCount % longBreakInterval === 0) ? 'longBreak' : 'shortBreak';
           const autoBreak = settings.autoStartBreak ?? true;
           
-          changeMode(nextMode, autoBreak);
+          changeMode(nextMode, autoBreak && !lateFinish.current);
         } else {
           const autoNext = settings.autoStartNext ?? false;
-          changeMode('pomodoro', autoNext);
+          changeMode('pomodoro', autoNext && !lateFinish.current);
         }
       });
     } 
@@ -320,6 +326,76 @@ export default function PomodoroPage() {
     window.addEventListener('pagehide', handleAppClose);
     return () => { window.removeEventListener('beforeunload', handleAppClose); window.removeEventListener('pagehide', handleAppClose); };
   }, [userId]);
+
+  // ---- বটের সাথে একই টাইমার ----
+  // timerSeen: বটের যে বদল পর্যন্ত দেখা বা নিজে পাঠানো হয়েছে (updated_at), তার পরেরটাই শুধু বসাই
+  const timerSeen = useRef(0);
+  const markSeen = (at: number) => {
+    timerSeen.current = Math.max(timerSeen.current, at);
+    try { localStorage.setItem('pomodoro_timer_seen', String(timerSeen.current)); } catch { /* প্রাইভেট মোড */ }
+  };
+  useEffect(() => { timerSeen.current = Number(localStorage.getItem('pomodoro_timer_seen')) || 0; }, []);
+
+  // অ্যাপে বদলালে বটকে জানাই, একটার পর একটা (যাতে পরেরটা আগে না পৌঁছায়)
+  const pushChain = useRef<Promise<unknown>>(Promise.resolve());
+  const pushTimer = (s: TimerState) => {
+    if (!botLinked) return;
+    const set = getSettings();
+    const body = {
+      endAt: s.endAt, mode: s.mode, timeLeft: s.timeLeft, initial: s.initialDuration,
+      taskId: activeTask?.id || null, taskTitle: activeTask?.title || null,
+      lengths: { focus: set.pomodoroLength || 25, short: set.shortBreak || 5, long: set.longBreak || 15 },
+    };
+    pushChain.current = pushChain.current.then(() => botTimerPush(auth, body)).then((at) => { if (at) markSeen(at); });
+  };
+
+  // বট থেকে চালানো যে সেশন অ্যাপ দেখেনি (বন্ধ ছিল), সেটা পড়ার হিসাব, লিডারবোর্ড আর টাস্কে তুলি
+  const saveBotSession = async (uid: string, s: BotSession) => {
+    const task = tasksRef.current.find((x) => x.id === s.task_id);
+    await addDoc(collection(db, 'users', uid, 'sessions'), {
+      taskId: s.task_id, taskTitle: s.task_title || task?.title || "Focus Session", category: task?.category || activeCategory,
+      duration: s.minutes, mode: s.mode, completed: Boolean(s.completed), timestamp: new Date(s.ended_at).toISOString(), source: 'bot',
+    });
+    if (s.mode === 'pomodoro') addMinutes(uid, account?.name || auth.currentUser?.displayName || "", s.minutes).catch(() => undefined);
+    if (s.completed && task) {
+      const updated = tasksRef.current.map((x) => x.id === task.id ? { ...x, completedPomodoros: (x.completedPomodoros || 0) + 1 } : x);
+      tasksRef.current = updated;
+      setTasks(updated);
+      syncTasksToDB(updated, uid);
+    }
+  };
+
+  // অ্যাপ খোলা থাকলে ১৫ সেকেন্ড পরপর আর অ্যাপে ফিরে এলেই বটের বদল দেখি
+  const pullRef = useRef<() => Promise<void>>(async () => undefined);
+  pullRef.current = async () => {
+    if (!userId || document.visibilityState !== 'visible') return;
+    const r = await botTimerPull(auth);
+    if (!r) return;
+    for (const s of r.sessions) await saveBotSession(userId, s).catch(() => undefined);
+    const tm = r.timer;
+    if (!tm || tm.source !== 'bot' || tm.updated_at <= timerSeen.current) return;
+    markSeen(tm.updated_at);
+    const m: TimerMode = tm.mode === 'shortBreak' || tm.mode === 'longBreak' ? tm.mode : 'pomodoro';
+    if (tm.end_at && tm.end_at > Date.now()) applyRemote({ mode: m, endAt: tm.end_at, timeLeft: 0, initialDuration: tm.initial });
+    else if (!tm.end_at && tm.time_left < tm.initial) applyRemote({ mode: m, endAt: null, timeLeft: tm.time_left, initialDuration: tm.initial });
+    else { changeMode('pomodoro'); return; }   // বট থেকে বন্ধ করা (যতটুকু পড়া হয়েছে বট রেখে দিয়েছে)
+    const task = tm.task_id ? tasksRef.current.find((x) => x.id === tm.task_id && !x.completed) : null;
+    if (task) setActiveTask(task);
+    setCurrentScreen('timer');
+  };
+  useEffect(() => {
+    if (!botLinked || !userId) return;
+    let busy = false;
+    const pull = () => {
+      if (busy) return;
+      busy = true;
+      pullRef.current().catch(() => undefined).finally(() => { busy = false; });
+    };
+    pull();
+    const id = setInterval(pull, 15000);
+    document.addEventListener('visibilitychange', pull);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', pull); };
+  }, [botLinked, userId]);
 
   const confirmStopTimer = () => {
     const { timeLeft, isActive, initialDuration } = sessionState.current;

@@ -10,9 +10,12 @@ type Saved = { mode: TimerMode; endAt: number | null; timeLeft: number; initialD
 
 const secondsUntil = (endAt: number) => Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
 
-// onSchedule: টাইমার চালু হলে কখন শেষ হবে (endAt), থামলে/শেষ হলে null — বটকে জানানোর জন্য
-export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: TimerMode) => void,
-                         onSchedule?: (endAt: number | null, mode: TimerMode) => void) {
+export type TimerState = { mode: TimerMode; endAt: number | null; timeLeft: number; initialDuration: number };
+
+// onFinish: শেষ হলে (lateMs = কত পরে টের পেলাম, অ্যাপ বন্ধ ছিল কিনা বোঝার জন্য)
+// onChange: শুরু, থামানো, বন্ধ, ধরন বা সময় বদলালে (চলার সময় প্রতি সেকেন্ডে নয়) — বটকে জানানোর জন্য
+export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: TimerMode, lateMs: number) => void,
+                         onChange?: (s: TimerState) => void) {
   const [mode, setMode] = useState<TimerMode>(initialMode);
   const [initialDuration, setInitialDuration] = useState(25 * 60);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
@@ -23,9 +26,9 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   const finishedFor = useRef<number | null>(null);   // একই endAt এর জন্য "শেষ" একবারই
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
-  const scheduleRef = useRef(onSchedule);
-  scheduleRef.current = onSchedule;
-  const lastScheduled = useRef<number | null>(null);   // শুরুতে null, তাই খোলার সময় অকারণে "বাতিল" পাঠাই না
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+  const lastKey = useRef<string | null>(null);   // শুরুতে null, তাই খোলার সময় অকারণে পাঠাই না
   const isActive = endAt !== null;
 
   const getSettings = useCallback(() => {
@@ -70,10 +73,12 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   }, [ready, mode, endAt, timeLeft, initialDuration]);
 
   useEffect(() => {
-    if (!ready || endAt === lastScheduled.current) return;
-    lastScheduled.current = endAt;
-    scheduleRef.current?.(endAt, mode);
-  }, [ready, endAt, mode]);
+    if (!ready) return;
+    const key = `${mode}|${endAt}|${endAt === null ? timeLeft : ''}|${initialDuration}`;
+    if (lastKey.current === null || key === lastKey.current) { lastKey.current = key; return; }
+    lastKey.current = key;
+    changeRef.current?.({ mode, endAt, timeLeft, initialDuration });
+  }, [ready, mode, endAt, timeLeft, initialDuration]);
 
   // সেটিংস বদলালে: টাইমার একদম শুরুর অবস্থায় থাকলেই নতুন সময় বসাই (চলমান বা থামানো টাইমারে হাত দিই না)
   const live = useRef({ isActive, timeLeft, initialDuration, mode });
@@ -106,7 +111,7 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
       if (left === 0 && finishedFor.current !== endAt) {
         finishedFor.current = endAt;
         setEndAt(null);
-        finishRef.current?.(live.current.mode);
+        finishRef.current?.(live.current.mode, Date.now() - endAt);
       }
     };
     tick();
@@ -154,8 +159,17 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
     setEndAt(autoStart ? Date.now() + duration * 1000 : null);
   };
 
+  // বট থেকে বদলানো টাইমার বসাই (চলমান, থামানো বা শুরুর অবস্থা)
+  const applyRemote = (s: TimerState) => {
+    customized.current = false;
+    setMode(s.mode);
+    setInitialDuration(s.initialDuration);
+    setTimeLeft(s.endAt ? secondsUntil(s.endAt) : s.timeLeft);
+    setEndAt(s.endAt);
+  };
+
   return {
     mode, timeLeft, isActive, toggleTimer, resetTimer,
-    adjustTime, initialDuration, changeMode, getSettings, restored
+    adjustTime, initialDuration, changeMode, getSettings, restored, applyRemote
   };
 }
