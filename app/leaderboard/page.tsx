@@ -8,15 +8,17 @@ import Link from "next/link";
 import { auth } from "@/lib/firebaseClient";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { Board, Entry, ensureEntry, myEntry, topEntries } from "@/lib/leaderboard";
+import { useDuration, useLang } from "@/lib/i18n";
 
 // আসল লিডারবোর্ড: প্রত্যেকের ফোকাস মিনিট (lib/leaderboard.ts)। যে নাম লুকিয়েছে তাকে "A student" দেখাই।
-const TABS: [Board, string][] = [["week", "This Week"], ["all", "All Time"]];
-
-const formatTime = (minutes: number) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-const shown = (e: Entry, me: boolean) => (me ? `${e.name || "You"} (You)` : e.hidden || !e.name ? "A student" : e.name);
 
 export default function LeaderboardPage() {
   const { account } = useAccount();
+  const { t, n } = useLang();
+  const formatTime = useDuration();
+  const TABS: [Board, string][] = [["week", t("এই সপ্তাহ", "This Week")], ["all", t("সব সময়", "All Time")]];
+  const you = t("তুমি", "You");
+  const shown = (e: Entry, me: boolean) => (me ? `${e.name || you} (${you})` : e.hidden || !e.name ? t("একজন ছাত্র", "A student") : e.name);
   const [board, setBoard] = useState<Board>("week");
   const [rows, setRows] = useState<Entry[] | null>(null);
   const [mine, setMine] = useState<{ entry: Entry; rank: number } | null>(null);
@@ -54,8 +56,8 @@ export default function LeaderboardPage() {
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Leaderboard</h1>
-            <p className="text-xs font-medium text-slate-500 flex items-center gap-1"><Trophy size={12}/> Most focus time</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t("লিডারবোর্ড", "Leaderboard")}</h1>
+            <p className="text-xs font-medium text-slate-500 flex items-center gap-1"><Trophy size={12}/> {t("সবচেয়ে বেশি ফোকাস", "Most focus time")}</p>
           </div>
         </div>
       </div>
@@ -86,8 +88,8 @@ export default function LeaderboardPage() {
         ) : rows.length === 0 ? (
           <div className="text-center py-16 px-6">
             <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500"><Timer size={26} /></div>
-            <h3 className="font-bold text-slate-800 dark:text-white">{error ? "Could not load the leaderboard" : "No one here yet"}</h3>
-            <p className="text-sm text-slate-500 mt-1">{error ? "Check your internet and try again." : "Finish a focus session and be the first on the board."}</p>
+            <h3 className="font-bold text-slate-800 dark:text-white">{error ? t("লিডারবোর্ড আনা গেল না", "Could not load the leaderboard") : t("এখনো কেউ নেই", "No one here yet")}</h3>
+            <p className="text-sm text-slate-500 mt-1">{error ? t("ইন্টারনেট দেখে আবার চেষ্টা করো।", "Check your internet and try again.") : t("একটা ফোকাস সেশন শেষ করো, তুমিই হবে প্রথম।", "Finish a focus session and be the first on the board.")}</p>
           </div>
         ) : (
           <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -101,7 +103,7 @@ export default function LeaderboardPage() {
                       {idx === 0 ? <Crown size={22} className="text-yellow-500 drop-shadow-sm" /> :
                        idx === 1 ? <Trophy size={20} className="text-slate-400 drop-shadow-sm" /> :
                        idx === 2 ? <Trophy size={20} className="text-orange-400 drop-shadow-sm" /> :
-                       <span className="text-sm font-bold text-slate-400">{idx + 1}</span>}
+                       <span className="text-sm font-bold text-slate-400">{n(idx + 1)}</span>}
                     </div>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm shrink-0 ${
                       isMe ? 'bg-indigo-500 text-white' :
@@ -114,7 +116,7 @@ export default function LeaderboardPage() {
                     </div>
                     <div className="min-w-0">
                       <h4 className={`text-sm md:text-base font-bold truncate ${isMe ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-800 dark:text-slate-200'}`}>{label}</h4>
-                      <p className="text-[10px] md:text-xs font-medium text-slate-500 mt-0.5">🍅 {user.sessions} sessions</p>
+                      <p className="text-[10px] md:text-xs font-medium text-slate-500 mt-0.5">🍅 {t(`${n(user.sessions)}টা সেশন`, `${user.sessions} sessions`)}</p>
                     </div>
                   </div>
                   <span className={`shrink-0 text-xs md:text-sm font-bold px-2.5 py-1.5 rounded-lg ${
@@ -137,11 +139,11 @@ export default function LeaderboardPage() {
           <div className="bg-slate-900 dark:bg-[#2c2c2e] border border-slate-800 dark:border-white/10 p-3 rounded-2xl shadow-xl w-full max-w-md flex items-center justify-between pointer-events-auto">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-500 text-white text-xs font-extrabold min-w-8 h-8 px-1.5 rounded-full flex items-center justify-center shadow-md">
-                {mine ? `#${mine.rank}` : "–"}
+                {mine ? `#${n(mine.rank)}` : "–"}
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white">Your Rank</h4>
-                <p className="text-[10px] font-medium text-slate-400">{mine ? "Keep going! 🔥" : "Finish a focus session to get ranked"}</p>
+                <h4 className="text-sm font-bold text-white">{t("তোমার র‍্যাঙ্ক", "Your Rank")}</h4>
+                <p className="text-[10px] font-medium text-slate-400">{mine ? t("চালিয়ে যাও! 🔥", "Keep going! 🔥") : t("একটা ফোকাস সেশন শেষ করলেই র‍্যাঙ্ক পাবে", "Finish a focus session to get ranked")}</p>
               </div>
             </div>
             <span className="text-sm font-extrabold text-white bg-white/10 px-3 py-1.5 rounded-xl border border-white/5">

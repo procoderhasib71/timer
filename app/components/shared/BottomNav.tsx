@@ -4,16 +4,18 @@
 import { Timer, BarChart2, Trophy, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLang } from "@/lib/i18n";
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { t } = useLang();
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
   const navItems = [
-    { icon: Timer, label: "Focus", href: "/" },
-    { icon: BarChart2, label: "Stats", href: "/analytics" },
-    { icon: Trophy, label: "Rank", href: "/leaderboard" },
-    { icon: User, label: "Profile", href: "/profile" },
+    { icon: Timer, label: t("ফোকাস", "Focus"), href: "/" },
+    { icon: BarChart2, label: t("হিসাব", "Stats"), href: "/analytics" },
+    { icon: Trophy, label: t("র‍্যাঙ্ক", "Rank"), href: "/leaderboard" },
+    { icon: User, label: t("প্রোফাইল", "Profile"), href: "/profile" },
   ];
 
   return (
@@ -32,7 +34,7 @@ export default function BottomNav() {
           const isActive = pathname === item.href;
           return (
             <Link 
-              key={item.label} 
+              key={item.href} 
               href={item.href} 
               className="flex flex-col items-center gap-1 p-1 min-w-[4rem] transition-all active:scale-95"
             >

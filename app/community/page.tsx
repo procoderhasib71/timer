@@ -7,6 +7,7 @@ import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
+import { useLang } from "@/lib/i18n";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit } from "firebase/firestore";
 
 interface Message {
@@ -22,17 +23,20 @@ interface Group {
   id: string;
   name: string;
   description: string;
+  descriptionBn: string;
 }
 
 const STUDY_GROUPS: Group[] = [
-  { id: "hsc_warriors", name: "HSC 25/26 Warriors", description: "Discussion for HSC board exams and subjects." },
-  { id: "medical_admission", name: "Medical Aspirants", description: "Preparation and tips for Medical Admission." },
-  { id: "varsity_admission", name: "Varsity Unit-A", description: "Engineering and Varsity preparation." },
-  { id: "mbbs_grinders", name: "MBBS Professional", description: "For medical students to discuss anatomy, pathology etc." }
+  { id: "hsc_warriors", name: "HSC 25/26 Warriors", description: "Discussion for HSC board exams and subjects.", descriptionBn: "HSC বোর্ড পরীক্ষা আর বিষয় নিয়ে আলোচনা।" },
+  { id: "medical_admission", name: "Medical Aspirants", description: "Preparation and tips for Medical Admission.", descriptionBn: "মেডিকেল ভর্তির প্রস্তুতি আর পরামর্শ।" },
+  { id: "varsity_admission", name: "Varsity Unit-A", description: "Engineering and Varsity preparation.", descriptionBn: "ইঞ্জিনিয়ারিং আর ভার্সিটির প্রস্তুতি।" },
+  { id: "mbbs_grinders", name: "MBBS Professional", description: "For medical students to discuss anatomy, pathology etc.", descriptionBn: "মেডিকেল ছাত্রদের অ্যানাটমি, প্যাথলজি ইত্যাদি নিয়ে আলোচনা।" }
 ];
 
 export default function CommunityPage() {
   const { account } = useAccount();
+  const { t, lang } = useLang();
+  const desc = (g: Group) => (lang === "bn" ? g.descriptionBn : g.description);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -83,7 +87,7 @@ export default function CommunityPage() {
       await addDoc(collection(db, 'groups', activeGroup.id, 'messages'), {
         text: messageText,
         uid: currentUser.uid,
-        displayName: account?.name || currentUser.displayName || "A student",
+        displayName: account?.name || currentUser.displayName || t("একজন ছাত্র", "A student"),
         photoURL: currentUser.photoURL || null,
         createdAt: serverTimestamp(),
       });
@@ -93,9 +97,9 @@ export default function CommunityPage() {
   };
 
   const formatMessageTime = (timestamp: any) => {
-    if (!timestamp) return "Sending...";
+    if (!timestamp) return t("যাচ্ছে...", "Sending...");
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: '2-digit', minute: '2-digit' });
   };
 
   // --- VIEW 1: GROUP LIST ---
@@ -108,8 +112,8 @@ export default function CommunityPage() {
               <ArrowLeft size={24} />
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-white">Community</h1>
-              <p className="text-xs font-medium text-slate-500">Join Study Groups</p>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t("কমিউনিটি", "Community")}</h1>
+              <p className="text-xs font-medium text-slate-500">{t("পড়ার গ্রুপ", "Study Groups")}</p>
             </div>
           </div>
         </div>
@@ -119,16 +123,16 @@ export default function CommunityPage() {
             <div className="absolute -right-4 -top-4 opacity-20">
               <Users size={100} />
             </div>
-            <h2 className="text-2xl font-extrabold mb-2 relative z-10">Connect & Learn</h2>
-            <p className="text-sm font-medium text-indigo-100 relative z-10 max-w-[80%]">Join your specific study group to share notes, ask questions, and stay motivated together.</p>
+            <h2 className="text-2xl font-extrabold mb-2 relative z-10">{t("একসাথে পড়ি", "Connect & Learn")}</h2>
+            <p className="text-sm font-medium text-indigo-100 relative z-10 max-w-[80%]">{t("নিজের গ্রুপে প্রশ্ন করো, নোট ভাগ করো, একে অন্যকে উৎসাহ দাও।", "Ask questions, share notes and keep each other motivated in your study group.")}</p>
           </div>
 
-          <h3 className="text-sm font-extrabold tracking-wider text-slate-400 uppercase mb-2">Available Groups</h3>
-          
+          <h3 className="text-sm font-extrabold tracking-wider text-slate-400 uppercase mb-2">{t("গ্রুপগুলো", "Groups")}</h3>
+
           <div className="space-y-3">
             {STUDY_GROUPS.map((group, idx) => (
-              <div 
-                key={group.id} 
+              <div
+                key={group.id}
                 onClick={() => setActiveGroup(group)}
                 className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm cursor-pointer hover:border-indigo-500/50 transition-all hover:scale-[1.01] animate-in fade-in slide-in-from-bottom-4"
                 style={{ animationDelay: `${idx * 100}ms` }}
@@ -139,10 +143,10 @@ export default function CommunityPage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">{group.name}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{group.description}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{desc(group)}</p>
                   </div>
                   <div className="bg-slate-100 dark:bg-[#2c2c2e] text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0">
-                    Open
+                    {t("খোলো", "Open")}
                   </div>
                 </div>
               </div>
@@ -156,7 +160,7 @@ export default function CommunityPage() {
   // --- VIEW 2: ACTIVE CHAT ROOM ---
   return (
     <div className="w-full h-[100dvh] flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative">
-      
+
       {/* Chat Header */}
       <div className="px-4 py-4 flex items-center justify-between bg-white dark:bg-[#1c1c1e] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
         <div className="flex items-center gap-3">
@@ -169,7 +173,7 @@ export default function CommunityPage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{activeGroup.name}</h1>
-              <p className="text-[10px] font-medium text-slate-500 line-clamp-1">{activeGroup.description}</p>
+              <p className="text-[10px] font-medium text-slate-500 line-clamp-1">{desc(activeGroup)}</p>
             </div>
           </div>
         </div>
@@ -177,18 +181,18 @@ export default function CommunityPage() {
 
       {/* Chat Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-        
+
         {/* Welcome message */}
         <div className="flex justify-center my-6">
           <div className="bg-slate-200/50 dark:bg-white/5 px-4 py-2 rounded-full text-xs font-medium text-slate-500 dark:text-slate-400 text-center">
-            Welcome to the <span className="font-bold">{activeGroup.name}</span> community! 🚀
+            {t("স্বাগতম", "Welcome to")} <span className="font-bold">{activeGroup.name}</span> 🚀
           </div>
         </div>
 
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 opacity-50">
             <MessageSquare size={40} className="text-slate-400 mb-3" />
-            <p className="text-sm font-medium text-slate-500">Be the first to say hello!</p>
+            <p className="text-sm font-medium text-slate-500">{t("প্রথম মেসেজটা তুমিই দাও!", "Be the first to say hello!")}</p>
           </div>
         )}
 
@@ -199,7 +203,7 @@ export default function CommunityPage() {
           return (
             <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
               <div className={`flex max-w-[80%] ${isMe ? 'flex-row-reverse' : 'flex-row'} gap-2`}>
-                
+
                 {/* Avatar */}
                 {!isMe && showAvatar ? (
                   <div className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-sm overflow-hidden">
@@ -218,10 +222,10 @@ export default function CommunityPage() {
                   {!isMe && showAvatar && (
                     <span className="text-[10px] font-bold text-slate-500 mb-1 ml-1">{msg.displayName}</span>
                   )}
-                  <div 
+                  <div
                     className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
-                      isMe 
-                        ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                      isMe
+                        ? 'bg-indigo-600 text-white rounded-tr-sm'
                         : 'bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-200 rounded-tl-sm'
                     }`}
                   >
@@ -244,7 +248,7 @@ export default function CommunityPage() {
       <div className="bg-white dark:bg-[#1c1c1e] border-t border-slate-200 dark:border-white/5 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shrink-0 z-30">
         {!currentUser ? (
           <div className="text-center p-3 bg-red-50 dark:bg-red-500/10 rounded-xl text-red-500 text-sm font-bold">
-            Please log in to participate in the chat.
+            {t("চ্যাট করতে লগইন করো।", "Please log in to chat.")}
           </div>
         ) : (
           <form onSubmit={handleSendMessage} className="flex items-center gap-2">
@@ -253,12 +257,12 @@ export default function CommunityPage() {
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                placeholder={`Message #${activeGroup.name}...`}
+                placeholder={t("মেসেজ লেখো...", `Message #${activeGroup.name}...`)}
                 className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 py-2.5"
               />
             </div>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={!newMessage.trim()}
               className={`p-3 rounded-full shrink-0 transition-all ${newMessage.trim() ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 active:scale-95' : 'bg-slate-200 dark:bg-[#2c2c2e] text-slate-400 cursor-not-allowed'}`}
             >

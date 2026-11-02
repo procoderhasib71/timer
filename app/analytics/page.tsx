@@ -2,11 +2,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Clock, Flame, Target, Trophy, TrendingUp, BarChart3, Settings, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Clock, Flame, Target, Trophy, BarChart3, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
+import { useLang } from "@/lib/i18n";
 
 interface Session {
   id: string;
@@ -22,6 +23,10 @@ interface Session {
 type TimeFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
 export default function AnalyticsPage() {
+  const { t, n, lang } = useLang();
+  const loc = lang === "bn" ? "bn-BD" : "en-GB";
+  const dur = (min: number) => `${n(Math.floor(min / 60))}${t("ঘ", "h")} ${n(min % 60)}${t("মি", "m")}`;
+  const FILTER_LABEL: Record<TimeFilter, string> = { Today: t("আজ", "Today"), Week: t("সপ্তাহ", "Week"), Month: t("মাস", "Month"), Year: t("বছর", "Year") };
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<TimeFilter>('Week');
@@ -76,10 +81,10 @@ export default function AnalyticsPage() {
     filterStart.setHours(0, 0, 0, 0);
     filterEnd.setHours(23, 59, 59, 999);
   } else if (activeFilter === 'Week') {
-    filterStart.setDate(referenceDate.getDate() - referenceDate.getDay()); // Sunday Start
+    filterStart.setDate(referenceDate.getDate() - ((referenceDate.getDay() + 1) % 7)); // শনিবার থেকে
     filterStart.setHours(0, 0, 0, 0);
     filterEnd = new Date(filterStart);
-    filterEnd.setDate(filterStart.getDate() + 6); // Saturday End
+    filterEnd.setDate(filterStart.getDate() + 6); // শুক্রবার পর্যন্ত
     filterEnd.setHours(23, 59, 59, 999);
   } else if (activeFilter === 'Month') {
     filterStart.setDate(1);
@@ -104,33 +109,34 @@ export default function AnalyticsPage() {
   // Dynamic Header String
   const getDateDisplayString = () => {
     if (activeFilter === 'Today') {
-      if (dateOffset === 0) return "Today";
-      if (dateOffset === -1) return "Yesterday";
-      return referenceDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      if (dateOffset === 0) return t("আজ", "Today");
+      if (dateOffset === -1) return t("গতকাল", "Yesterday");
+      return referenceDate.toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' });
     } else if (activeFilter === 'Week') {
-      if (dateOffset === 0) return "This Week";
-      if (dateOffset === -1) return "Last Week";
+      if (dateOffset === 0) return t("এই সপ্তাহ", "This Week");
+      if (dateOffset === -1) return t("গত সপ্তাহ", "Last Week");
       const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
-      return `${filterStart.toLocaleDateString('en-GB', opts)} - ${filterEnd.toLocaleDateString('en-GB', opts)}`;
+      return `${filterStart.toLocaleDateString(loc, opts)} - ${filterEnd.toLocaleDateString(loc, opts)}`;
     } else if (activeFilter === 'Month') {
-      if (dateOffset === 0) return "This Month";
-      if (dateOffset === -1) return "Last Month";
-      return referenceDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      if (dateOffset === 0) return t("এই মাস", "This Month");
+      if (dateOffset === -1) return t("গত মাস", "Last Month");
+      return referenceDate.toLocaleDateString(loc, { month: 'long', year: 'numeric' });
     } else if (activeFilter === 'Year') {
-      if (dateOffset === 0) return "This Year";
-      if (dateOffset === -1) return "Last Year";
-      return referenceDate.getFullYear().toString();
+      if (dateOffset === 0) return t("এই বছর", "This Year");
+      if (dateOffset === -1) return t("গত বছর", "Last Year");
+      return n(referenceDate.getFullYear());
     }
   };
 
   // --- OVERVIEW CALCULATIONS ---
-  const totalFocusMinutes = filteredSessions.reduce((acc, curr) => acc + curr.duration, 0);
+  const focusSessions = filteredSessions.filter(s => !s.mode || s.mode === 'pomodoro');
+  const totalFocusMinutes = focusSessions.reduce((acc, curr) => acc + curr.duration, 0);
   const totalFocusHours = Math.floor(totalFocusMinutes / 60);
   const remainingMinutes = totalFocusMinutes % 60;
   const completedPomodoros = filteredSessions.filter(s => s.completed && s.mode === 'pomodoro').length;
 
   // --- CATEGORY BREAKDOWN ---
-  const categoryStats = filteredSessions.reduce((acc: Record<string, number>, curr) => {
+  const categoryStats = focusSessions.reduce((acc: Record<string, number>, curr) => {
     acc[curr.category] = (acc[curr.category] || 0) + curr.duration;
     return acc;
   }, {});
@@ -142,14 +148,14 @@ export default function AnalyticsPage() {
   let currentHighlightIndex = -1;
 
   if (activeFilter === 'Today') {
-    chartLabels = ['Night', 'Morning', 'Afternoon', 'Evening'];
+    chartLabels = [t('রাত', 'Night'), t('সকাল', 'Morning'), t('দুপুর', 'Afternoon'), t('সন্ধ্যা', 'Evening')];
     chartData = [0, 0, 0, 0];
     if (dateOffset === 0) {
       const currentHour = now.getHours();
       currentHighlightIndex = currentHour < 6 ? 0 : currentHour < 12 ? 1 : currentHour < 18 ? 2 : 3;
     }
 
-    filteredSessions.forEach(s => {
+    focusSessions.forEach(s => {
       const hour = new Date(s.timestamp).getHours();
       if (hour < 6) chartData[0] += s.duration;
       else if (hour < 12) chartData[1] += s.duration;
@@ -158,20 +164,21 @@ export default function AnalyticsPage() {
     });
   } 
   else if (activeFilter === 'Week') {
-    chartLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    chartLabels = [t('শনি', 'Sat'), t('রবি', 'Sun'), t('সোম', 'Mon'), t('মঙ্গল', 'Tue'), t('বুধ', 'Wed'), t('বৃহ', 'Thu'), t('শুক্র', 'Fri')];
     chartData = [0, 0, 0, 0, 0, 0, 0];
-    if (dateOffset === 0) currentHighlightIndex = now.getDay();
+    const col = (d: Date) => (d.getDay() + 1) % 7;   // শনিবার = ০
+    if (dateOffset === 0) currentHighlightIndex = col(now);
 
-    filteredSessions.forEach(s => {
-      chartData[new Date(s.timestamp).getDay()] += s.duration;
+    focusSessions.forEach(s => {
+      chartData[col(new Date(s.timestamp))] += s.duration;
     });
   } 
   else if (activeFilter === 'Month') {
-    chartLabels = ['W1', 'W2', 'W3', 'W4', 'W5'];
+    chartLabels = [1, 2, 3, 4, 5].map(i => t(`${n(i)}ম`, `W${i}`));
     chartData = [0, 0, 0, 0, 0];
     if (dateOffset === 0) currentHighlightIndex = Math.floor((now.getDate() - 1) / 7);
 
-    filteredSessions.forEach(s => {
+    focusSessions.forEach(s => {
       const weekIndex = Math.floor((new Date(s.timestamp).getDate() - 1) / 7);
       if (weekIndex >= 0 && weekIndex <= 4) {
         chartData[weekIndex] += s.duration;
@@ -179,21 +186,25 @@ export default function AnalyticsPage() {
     });
   } 
   else if (activeFilter === 'Year') {
-    chartLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    chartLabels = Array.from({ length: 12 }, (_, i) => new Date(2026, i, 1).toLocaleDateString(loc, { month: 'short' }));
     chartData = new Array(12).fill(0);
     if (dateOffset === 0) currentHighlightIndex = now.getMonth();
 
-    filteredSessions.forEach(s => {
+    focusSessions.forEach(s => {
       chartData[new Date(s.timestamp).getMonth()] += s.duration;
     });
   }
 
   const maxChartValue = Math.max(...chartData, 60);
 
+  // লোড হওয়ার সময় পাতার আকারের ধূসর ঘর (skeleton), যাতে হঠাৎ লাফ না দেয়
   if (loading) {
     return (
-      <div className="w-full min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      <div className="w-full min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] px-5 pt-24 space-y-6">
+        <div className="h-10 rounded-2xl bg-slate-200/70 dark:bg-[#1c1c1e] animate-pulse" />
+        <div className="h-12 rounded-2xl bg-white dark:bg-[#1c1c1e] animate-pulse" />
+        <div className="grid grid-cols-2 gap-4"><div className="h-36 rounded-3xl bg-indigo-200/60 dark:bg-indigo-500/20 animate-pulse" /><div className="h-36 rounded-3xl bg-white dark:bg-[#1c1c1e] animate-pulse" /></div>
+        <div className="h-64 rounded-3xl bg-white dark:bg-[#1c1c1e] animate-pulse" />
       </div>
     );
   }
@@ -208,13 +219,10 @@ export default function AnalyticsPage() {
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Analytics</h1>
-            <p className="text-xs font-medium text-slate-500 flex items-center gap-1"><CalendarDays size={12}/> Study Sessions</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t("পড়ার হিসাব", "Analytics")}</h1>
+            <p className="text-xs font-medium text-slate-500 flex items-center gap-1"><CalendarDays size={12}/> {t("তোমার ফোকাস সেশন", "Study Sessions")}</p>
           </div>
         </div>
-        <button className="p-2 text-slate-500 bg-slate-200/50 dark:bg-[#1c1c1e] rounded-full hover:text-slate-900 dark:hover:text-white transition-colors">
-          <Settings size={20} />
-        </button>
       </div>
 
       <div className="px-5 space-y-6 mt-2">
@@ -231,7 +239,7 @@ export default function AnalyticsPage() {
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              {filter}
+              {FILTER_LABEL[filter]}
             </button>
           ))}
         </div>
@@ -270,12 +278,12 @@ export default function AnalyticsPage() {
             </div>
             <div className="mb-4">
               <span className="bg-white/20 px-2.5 py-1 rounded-lg text-[10px] font-extrabold tracking-wider uppercase backdrop-blur-sm">
-                Focus Time
+                {t("ফোকাস সময়", "Focus Time")}
               </span>
             </div>
             <div>
               <h2 className="text-3xl font-extrabold tracking-tight">
-                {totalFocusHours}<span className="text-lg font-medium opacity-80 ml-0.5">h</span> {remainingMinutes}<span className="text-lg font-medium opacity-80 ml-0.5">m</span>
+                {n(totalFocusHours)}<span className="text-lg font-medium opacity-80 ml-0.5">{t("ঘ", "h")}</span> {n(remainingMinutes)}<span className="text-lg font-medium opacity-80 ml-0.5">{t("মি", "m")}</span>
               </h2>
             </div>
           </div>
@@ -286,9 +294,9 @@ export default function AnalyticsPage() {
                 <Flame size={20} />
               </div>
               <div>
-                <p className="text-[10px] text-slate-400 font-extrabold tracking-wider uppercase">Sessions</p>
+                <p className="text-[10px] text-slate-400 font-extrabold tracking-wider uppercase">{t("সেশন", "Sessions")}</p>
                 <h3 className="text-xl font-extrabold text-slate-800 dark:text-white">
-                  {filteredSessions.length}
+                  {n(focusSessions.length)}
                 </h3>
               </div>
             </div>
@@ -298,8 +306,8 @@ export default function AnalyticsPage() {
                 <Target size={20} />
               </div>
               <div>
-                <p className="text-[10px] text-slate-400 font-extrabold tracking-wider uppercase">Pomodoros</p>
-                <h3 className="text-xl font-extrabold text-slate-800 dark:text-white">{completedPomodoros}</h3>
+                <p className="text-[10px] text-slate-400 font-extrabold tracking-wider uppercase">{t("পুরো পোমোডোরো", "Pomodoros")}</p>
+                <h3 className="text-xl font-extrabold text-slate-800 dark:text-white">{n(completedPomodoros)}</h3>
               </div>
             </div>
           </div>
@@ -310,12 +318,9 @@ export default function AnalyticsPage() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                <BarChart3 size={18} className="text-indigo-500"/> Focus Trend
+                <BarChart3 size={18} className="text-indigo-500"/> {t("কখন কতটা পড়েছ", "Focus Trend")}
               </h3>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">Total minutes studied ({activeFilter.toLowerCase()})</p>
-            </div>
-            <div className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${totalFocusMinutes > 0 ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-[#2c2c2e] text-slate-500'}`}>
-              <TrendingUp size={14}/> {totalFocusMinutes > 0 ? '+Active' : 'No Data'}
+              <p className="text-[11px] font-medium text-slate-400 mt-1">{t("মোট", "Total")} {dur(totalFocusMinutes)}</p>
             </div>
           </div>
 
@@ -330,7 +335,7 @@ export default function AnalyticsPage() {
                   
                   {/* Tooltip */}
                   <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-slate-800 dark:bg-white text-white dark:text-slate-900 text-[10px] font-bold px-2 py-1 rounded-md transition-opacity pointer-events-none z-10 whitespace-nowrap shadow-lg">
-                    {Math.floor(value/60)}h {value%60}m
+                    {dur(value)}
                   </div>
                   
                   {/* Bar */}
@@ -356,13 +361,13 @@ export default function AnalyticsPage() {
         {/* CATEGORY BREAKDOWN */}
         <div className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 rounded-3xl p-5 shadow-sm animate-in fade-in slide-in-from-bottom-8 duration-500 delay-200">
           <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2 mb-6">
-            <Trophy size={18} className="text-amber-500"/> Top Categories
+            <Trophy size={18} className="text-amber-500"/> {t("কোন বিষয়ে বেশি", "Top Categories")}
           </h3>
           
           <div className="space-y-5">
             {sortedCategories.length === 0 ? (
               <div className="text-center py-6 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-transparent">
-                <p className="text-sm font-medium text-slate-400">No session data for this period.</p>
+                <p className="text-sm font-medium text-slate-400">{t("এই সময়ে কোনো সেশন নেই। একটা ফোকাস সেশন শেষ করলে এখানে দেখাবে।", "No sessions in this period. Finish a focus session and it shows up here.")}</p>
               </div>
             ) : (
               sortedCategories.slice(0, 5).map(([category, duration], index) => {
@@ -378,7 +383,7 @@ export default function AnalyticsPage() {
                         {category}
                       </span>
                       <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-[#2c2c2e] px-2 py-1 rounded-md group-hover:bg-slate-200 dark:group-hover:bg-white/10 transition-colors">
-                        {Math.floor(duration/60)}h {duration%60}m
+                        {dur(duration)}
                       </span>
                     </div>
                     <div className="w-full bg-slate-100 dark:bg-[#2c2c2e] h-2.5 rounded-full overflow-hidden">

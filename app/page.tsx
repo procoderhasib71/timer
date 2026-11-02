@@ -5,8 +5,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Sun, Calendar, CalendarDays, CheckCircle2, 
-  Plus, MoreVertical, Circle, Clock, Flag, Tag, Repeat, Bell, Send,
-  Users, Settings
+  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send,
+  
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
 import { useTimer, TimerMode } from "@/hooks/useTimer";
@@ -17,6 +17,7 @@ import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore"
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { botReminder, botTimer } from "@/lib/admcqAccount";
 import { addMinutes, ensureEntry } from "@/lib/leaderboard";
+import { useLang } from "@/lib/i18n";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
@@ -49,9 +50,19 @@ const isClock = (v?: string | null): v is string => Boolean(v && /^\d\d:\d\d$/.t
 const REPEATS: [string, string][] = [["", "None"], ["daily", "Daily"], ["satthu", "Sat–Thu"], ["weekly", "Weekly"]];
 const LEGACY_REPEAT: Record<string, string> = { Daily: "daily", Weekly: "weekly", Weekdays: "satthu" };
 const repeatKey = (v?: string | null) => (v ? LEGACY_REPEAT[v] ?? (REPEATS.some(([k]) => k === v) ? v : "") : "");
-const repeatLabel = (v?: string | null) => REPEATS.find(([k]) => k === repeatKey(v))?.[1] || "None";
 
 /** নিয়মের আজকের দিনে, আগে শেষ করা বারবারের টাস্ক আবার অসম্পূর্ণ করি */
+/** কিছু না থাকলে: আইকন, শিরোনাম আর এক লাইনের পথ দেখানো */
+function EmptyState({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
+  return (
+    <div className="text-center py-12 px-6 animate-in fade-in duration-500">
+      <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500">{icon}</div>
+      <h3 className="font-bold text-slate-800 dark:text-white">{title}</h3>
+      <p className="text-sm text-slate-500 mt-1">{body}</p>
+    </div>
+  );
+}
+
 function renewRepeats(list: Task[]): Task[] | null {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -69,6 +80,13 @@ function renewRepeats(list: Task[]): Task[] | null {
 }
 
 export default function PomodoroPage() {
+  const { t, n, lang } = useLang();
+  const loc = lang === "bn" ? "bn-BD" : "en-GB";
+  // তালিকা/তারিখের নাম ডাটায় ইংরেজিতে থাকে ("Today" ...), দেখাই ভাষা অনুযায়ী
+  const listLabel = (v?: string | null) => ({
+    Today: t("আজ", "Today"), Tomorrow: t("আগামীকাল", "Tomorrow"), "This Week": t("এই সপ্তাহ", "This Week"),
+    Planned: t("পরিকল্পিত", "Planned"), Completed: t("শেষ হয়েছে", "Completed"), None: t("নেই", "None"),
+  } as Record<string, string>)[v || ""] || v || "";
   const [currentScreen, setCurrentScreen] = useState<'home' | 'tasks' | 'timer'>('home');
   const [activeList, setActiveList] = useState("Today");
   
@@ -96,8 +114,8 @@ export default function PomodoroPage() {
     const settings = JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
     playRingtone(settings.ringtone || "Default");
     vibrate();
-    if (finishedMode === 'pomodoro') notify("Focus session complete 🍅", "Great work! Time for a break.");
-    else notify("Break is over ⏰", "Ready for the next focus session?");
+    if (finishedMode === 'pomodoro') notify(t("ফোকাস সেশন শেষ 🍅", "Focus session complete 🍅"), t("দারুণ! এবার একটু বিরতি নাও।", "Great work! Time for a break."));
+    else notify(t("বিরতি শেষ ⏰", "Break is over ⏰"), t("পরের ফোকাস সেশনের জন্য তৈরি?", "Ready for the next focus session?"));
   };
 
   const { account, botLinked } = useAccount();
@@ -110,13 +128,13 @@ export default function PomodoroPage() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const userName = (account?.name || auth.currentUser?.displayName || "").split(" ")[0];
-  const [greeting, setGreeting] = useState("Hello");
+  const [hour, setHour] = useState<number | null>(null);
 
   // সময় অনুযায়ী শুভেচ্ছা (সার্ভারে নয়, ব্রাউজারের ঘড়িতে)
-  useEffect(() => {
-    const h = new Date().getHours();
-    setGreeting(h >= 5 && h < 12 ? "Good Morning" : h >= 12 && h < 17 ? "Good Afternoon" : h >= 17 && h < 21 ? "Good Evening" : "Good Night");
-  }, []);
+  useEffect(() => { setHour(new Date().getHours()); }, []);
+  const greeting = hour === null ? t("স্বাগতম", "Hello")
+    : hour >= 5 && hour < 12 ? t("শুভ সকাল", "Good Morning") : hour >= 12 && hour < 17 ? t("শুভ দুপুর", "Good Afternoon")
+    : hour >= 17 && hour < 21 ? t("শুভ সন্ধ্যা", "Good Evening") : t("শুভ রাত্রি", "Good Night");
 
   // লিডারবোর্ডে নিজের ঘর না থাকলে আগের সেশন থেকে বানাই (প্রথমবার একবারই)
   useEffect(() => {
@@ -137,12 +155,12 @@ export default function PomodoroPage() {
   useEffect(() => {
     const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
     const title = !isActive && timeLeft === initialDuration ? "Pomodoro BD"
-      : `${isActive ? "" : "⏸ "}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} · ${mode === 'pomodoro' ? "Focus" : "Break"}`;
+      : `${isActive ? "" : "⏸ "}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} · ${mode === 'pomodoro' ? t("ফোকাস", "Focus") : t("বিরতি", "Break")}`;
     document.title = title;
     // পেজ লোডের পরে Next নিজের title বসায়; থামানো টাইমারে তাই একটু পরে আবার
     const id = setTimeout(() => { document.title = title; }, 500);
     return () => clearTimeout(id);
-  }, [timeLeft, isActive, initialDuration, mode]);
+  }, [timeLeft, isActive, initialDuration, mode, t]);
 
   // সেটিংসে চালু থাকলে টাইমার চলার সময় স্ক্রিন বন্ধ হবে না
   useEffect(() => {
@@ -190,9 +208,9 @@ export default function PomodoroPage() {
     const formatOpts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
     
     return {
-      startStr: startDate.toLocaleDateString('en-GB', formatOpts),
-      endStr: endDate.toLocaleDateString('en-GB', formatOpts),
-      rangeStr: `${startDate.toLocaleDateString('en-GB', formatOpts)} - ${endDate.toLocaleDateString('en-GB', formatOpts)}`
+      startStr: startDate.toLocaleDateString(loc, formatOpts),
+      endStr: endDate.toLocaleDateString(loc, formatOpts),
+      rangeStr: `${startDate.toLocaleDateString(loc, formatOpts)} - ${endDate.toLocaleDateString(loc, formatOpts)}`
     };
   };
 
@@ -409,7 +427,8 @@ export default function PomodoroPage() {
   const progress = initialDuration > 0 ? ((initialDuration - timeLeft) / initialDuration) * 100 : 0;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
-  const formatTime = (seconds: number) => {
+  const formatTime = (seconds: number) => n(formatClockTime(seconds));
+  const formatClockTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60;
     if (h > 0) return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
@@ -417,7 +436,7 @@ export default function PomodoroPage() {
 
   const formatCompletedDate = (isoString?: string | null) => {
     if (!isoString) return "";
-    return new Date(isoString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+    return new Date(isoString).toLocaleDateString(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const getPriorityColor = (level?: number) => {
@@ -428,13 +447,15 @@ export default function PomodoroPage() {
   };
 
   const getPriorityLabel = (level?: number) => {
-    if (level === 3) return "High Priority";
-    if (level === 2) return "Medium Priority";
-    if (level === 1) return "Low Priority";
-    return "Priority";
+    if (level === 3) return t("বেশি জরুরি", "High Priority");
+    if (level === 2) return t("মাঝারি জরুরি", "Medium Priority");
+    if (level === 1) return t("কম জরুরি", "Low Priority");
+    return t("গুরুত্ব", "Priority");
   };
 
   const currentMinutes = Math.ceil(timeLeft / 60);
+  const dur = (min: number) => `${n(Math.floor(min / 60))}${t("ঘ", "h")} ${n(min % 60)}${t("মি", "m")}`;
+  const repeatText = (v?: string | null) => ({ "": t("নেই", "None"), daily: t("প্রতিদিন", "Daily"), satthu: t("শনি–বৃহস্পতি", "Sat–Thu"), weekly: t("প্রতি সপ্তাহে", "Weekly") } as Record<string, string>)[repeatKey(v)];
   const openTasks = (title: string) => { setActiveList(title); setCurrentScreen('tasks'); };
   
   const activeTasksList = tasks.filter(t => !t.completed);
@@ -459,13 +480,13 @@ export default function PomodoroPage() {
         <div className="flex-1">
           <h3 className={`text-sm font-medium transition-colors ${task.completed ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-800 dark:text-slate-200'}`}>{task.title}</h3>
           <div className="flex items-center gap-2 mt-2 text-[11px] font-bold text-slate-500">
-            <div className="flex gap-0.5 items-center mr-2"><span className="text-red-400 mr-1 text-xs">🍅 {task.completedPomodoros || 0}/{task.estimatedPomodoros || 1}</span></div>
+            <div className="flex gap-0.5 items-center mr-2"><span className="text-red-400 mr-1 text-xs">🍅 {n(task.completedPomodoros || 0)}/{n(task.estimatedPomodoros || 1)}</span></div>
             {!task.completed && task.priority && task.priority > 0 && (<span className="flex items-center"><Flag size={10} className={getPriorityColor(task.priority)} /></span>)}
             <span className="bg-slate-100 dark:bg-black/30 px-1.5 py-0.5 rounded text-[9px]">{task.category}</span>
             {task.completed && task.completedAt ? (
                <span className="flex items-center gap-1 text-emerald-500/80 ml-1"><CheckCircle2 size={10}/> {formatCompletedDate(task.completedAt)}</span>
             ) : (
-               task.dueDate && <span className="flex items-center gap-1 text-slate-400 ml-1"><CalendarDays size={10}/> {task.dueDate}</span>
+               task.dueDate && <span className="flex items-center gap-1 text-slate-400 ml-1"><CalendarDays size={10}/> {listLabel(task.dueDate)}</span>
             )}
           </div>
         </div>
@@ -480,43 +501,43 @@ export default function PomodoroPage() {
     <div className="w-full pb-40 px-5 pt-6 transition-colors duration-300">
       <div className="mb-8 mt-2">
         <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">{greeting}{userName ? `, ${userName}` : ""}</h2>
-        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Ready to focus? 🔥</h1>
+        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{t("পড়া শুরু করবে? 🔥", "Ready to focus? 🔥")}</h1>
       </div>
       <div className="grid grid-cols-4 gap-2 mb-8 bg-white dark:bg-slate-800/40 p-4 rounded-3xl border border-slate-200 dark:border-slate-700/50">
         <div className="flex flex-col items-center text-center">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">Estimated</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{Math.floor(todayEstimatedTime/60)}h {todayEstimatedTime%60}m</span>
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("আনুমানিক", "Estimated")}</span>
+          <span className="text-lg font-bold text-slate-800 dark:text-white">{dur(todayEstimatedTime)}</span>
         </div>
         <div className="flex flex-col items-center text-center border-l border-slate-200 dark:border-slate-700/50">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">To Do</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{todayTasks.length}</span>
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("বাকি", "To Do")}</span>
+          <span className="text-lg font-bold text-slate-800 dark:text-white">{n(todayTasks.length)}</span>
         </div>
         <div className="flex flex-col items-center text-center border-l border-slate-200 dark:border-slate-700/50">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">Elapsed</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{Math.floor((totalElapsedPomodoros*25)/60)}h</span>
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("পড়েছি", "Elapsed")}</span>
+          <span className="text-lg font-bold text-slate-800 dark:text-white">{n(Math.floor((totalElapsedPomodoros*25)/60))}{t("ঘ", "h")}</span>
         </div>
         <div className="flex flex-col items-center text-center border-l border-slate-200 dark:border-slate-700/50">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">Done</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{completedTasksList.length}</span>
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("শেষ", "Done")}</span>
+          <span className="text-lg font-bold text-slate-800 dark:text-white">{n(completedTasksList.length)}</span>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <button onClick={() => openTasks("Today")} className="col-span-2 rounded-3xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 p-5 text-left shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95">
           <div className="flex justify-between items-center mb-6">
             <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl text-indigo-500 dark:text-indigo-400"><Sun size={24} /></div>
-            <span className="bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">{todayTasks.length} Tasks left</span>
+            <span className="bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">{t(`${n(todayTasks.length)}টা কাজ বাকি`, `${todayTasks.length} tasks left`)}</span>
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">Today</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Estimated time: {Math.floor(todayEstimatedTime/60)}h {todayEstimatedTime%60}m</p>
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">{t("আজ", "Today")}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">{t("আনুমানিক সময়", "Estimated time")}: {dur(todayEstimatedTime)}</p>
           </div>
         </button>
         
         <button onClick={() => openTasks("This Week")} className="col-span-1 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-5 text-left shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95 flex flex-col justify-between">
           <div>
             <Calendar size={22} className="text-blue-500 dark:text-blue-400 mb-4" />
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">This Week</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs">{thisWeekTasks.length} Tasks</p>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">{t("এই সপ্তাহ", "This Week")}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">{t(`${n(thisWeekTasks.length)}টা কাজ`, `${thisWeekTasks.length} tasks`)}</p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/50 w-full">
             <p className="text-[9px] font-bold text-blue-500/80 dark:text-blue-400/80 uppercase tracking-wider">{weekData.rangeStr}</p>
@@ -526,17 +547,17 @@ export default function PomodoroPage() {
         <button onClick={() => openTasks("Planned")} className="col-span-1 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-5 text-left shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95 flex flex-col justify-between">
           <div>
             <CalendarDays size={22} className="text-teal-500 dark:text-teal-400 mb-4" />
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">Planned</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs">{plannedTasks.length} Tasks</p>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">{t("পরিকল্পিত", "Planned")}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">{t(`${n(plannedTasks.length)}টা কাজ`, `${plannedTasks.length} tasks`)}</p>
           </div>
           <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/50 w-full">
-            <p className="text-[9px] font-bold text-teal-500/80 dark:text-teal-400/80 uppercase tracking-wider">After {weekData.endStr}</p>
+            <p className="text-[9px] font-bold text-teal-500/80 dark:text-teal-400/80 uppercase tracking-wider">{t(`${weekData.endStr} এর পরে`, `After ${weekData.endStr}`)}</p>
           </div>
         </button>
         
         <button onClick={() => openTasks("Completed")} className="col-span-2 flex items-center justify-between bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 mt-2 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors active:scale-95">
-          <div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><CheckCircle2 size={20} /></div><span className="font-bold text-slate-700 dark:text-slate-200">Completed</span></div>
-          <span className="text-lg font-extrabold text-slate-400 dark:text-slate-500">{completedTasksList.length}</span>
+          <div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><CheckCircle2 size={20} /></div><span className="font-bold text-slate-700 dark:text-slate-200">{t("শেষ হয়েছে", "Completed")}</span></div>
+          <span className="text-lg font-extrabold text-slate-400 dark:text-slate-500">{n(completedTasksList.length)}</span>
         </button>
       </div>
     </div>
@@ -547,40 +568,40 @@ export default function PomodoroPage() {
       <div className="flex items-center justify-between mb-8 mt-2 relative z-30">
         <button onClick={() => setCurrentScreen('home')} className="p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><ArrowLeft size={24} /></button>
         <div className="flex flex-col items-center">
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">{activeList}</h1>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white">{listLabel(activeList)}</h1>
           {activeList === "This Week" && <span className="text-[10px] text-blue-500 font-medium">{weekData.rangeStr}</span>}
-          {activeList === "Planned" && <span className="text-[10px] text-teal-500 font-medium">After {weekData.endStr}</span>}
+          {activeList === "Planned" && <span className="text-[10px] text-teal-500 font-medium">{t(`${weekData.endStr} এর পরে`, `After ${weekData.endStr}`)}</span>}
         </div>
-        <button className="p-2 -mr-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><MoreVertical size={20} /></button>
+        <div className="w-10" />
       </div>
 
       {activeList !== "Completed" && !isAddingTask && (
         <button onClick={openAddTaskModal} className="w-full bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 mb-6 shadow-sm flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
           <Plus size={20} className="mr-3" />
-          <span className="text-sm font-medium">Add a task to {activeList}...</span>
+          <span className="text-sm font-medium">{t(`${listLabel(activeList)} এ কাজ যোগ করো...`, `Add a task to ${activeList}...`)}</span>
         </button>
       )}
 
       <div className="space-y-3 pb-24 relative z-30">
         {activeList === "Completed" ? (
-          completedTasksList.length === 0 ? <p className="text-center text-slate-400 text-sm mt-10">No completed tasks yet.</p> : 
+          completedTasksList.length === 0 ? <EmptyState icon={<CheckCircle2 size={26} />} title={t("এখনো কোনো কাজ শেষ হয়নি", "No completed tasks yet")} body={t("কাজ শেষ করে টিক দিলে এখানে আসবে।", "Tick a task when you finish it and it shows up here.")} /> : 
           <div className="space-y-3 mt-4">
             {(showAllCompletedTasks ? completedTasksList : completedTasksList.slice(0, 3)).map(renderTaskItem)}
             {completedTasksList.length > 3 && (
               <div className="flex justify-center pt-3 pb-6">
                 <button onClick={() => setShowAllCompletedTasks(!showAllCompletedTasks)} className="text-xs font-bold text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 transition-colors">
-                  {showAllCompletedTasks ? "Show Less ▴" : `Show More (${completedTasksList.length - 3}) ▾`}
+                  {showAllCompletedTasks ? t("কম দেখাও ▴", "Show Less ▴") : t(`আরো দেখাও (${n(completedTasksList.length - 3)}) ▾`, `Show More (${completedTasksList.length - 3}) ▾`)}
                 </button>
               </div>
             )}
           </div>
         ) : (
           <>
-            {currentDisplayedActiveTasks.length === 0 ? <p className="text-center text-slate-400 mt-10 text-sm">No active tasks added to {activeList} yet.</p> : currentDisplayedActiveTasks.map(renderTaskItem)}
+            {currentDisplayedActiveTasks.length === 0 ? <EmptyState icon={<Plus size={26} />} title={t("এখানে এখনো কোনো কাজ নেই", "Nothing here yet")} body={t("উপরে চেপে প্রথম কাজটা যোগ করো, তারপর টাইমার চালাও।", "Add your first task above, then start the timer.")} /> : currentDisplayedActiveTasks.map(renderTaskItem)}
             {completedTasksList.length > 0 && (
               <div className="flex justify-center pt-6 pb-2">
                 <button onClick={() => setShowCompletedSection(!showCompletedSection)} className="bg-slate-200 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 text-xs font-bold px-5 py-2.5 rounded-full transition-colors hover:bg-slate-300 dark:hover:bg-slate-700">
-                  {showCompletedSection ? "Hide Completed Tasks ▴" : `Show Completed Tasks (${completedTasksList.length}) ▾`}
+                  {showCompletedSection ? t("শেষ করা কাজ লুকাও ▴", "Hide Completed Tasks ▴") : t(`শেষ করা কাজ দেখাও (${n(completedTasksList.length)}) ▾`, `Show Completed Tasks (${completedTasksList.length}) ▾`)}
                 </button>
               </div>
             )}
@@ -590,7 +611,7 @@ export default function PomodoroPage() {
                 {completedTasksList.length > 3 && (
                   <div className="flex justify-center pt-3 pb-6">
                     <button onClick={() => setShowAllCompletedTasks(!showAllCompletedTasks)} className="text-xs font-bold text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 transition-colors">
-                      {showAllCompletedTasks ? "Show Less ▴" : `Show More (${completedTasksList.length - 3}) ▾`}
+                      {showAllCompletedTasks ? t("কম দেখাও ▴", "Show Less ▴") : t(`আরো দেখাও (${n(completedTasksList.length - 3)}) ▾`, `Show More (${completedTasksList.length - 3}) ▾`)}
                     </button>
                   </div>
                 )}
@@ -603,12 +624,12 @@ export default function PomodoroPage() {
   );
 
   const renderTimerScreen = () => (
-    <div className="absolute inset-0 z-50 flex flex-col items-center pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(3rem+env(safe-area-inset-bottom))] bg-slate-50 dark:bg-[#0f172a] animate-in fade-in zoom-in-95 duration-300 h-full w-full">
+    <div className="fixed inset-0 z-[60] flex flex-col items-center pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(3rem+env(safe-area-inset-bottom))] bg-slate-50 dark:bg-[#0f172a] animate-in fade-in zoom-in-95 duration-300 h-full w-full">
       <div className="w-full max-w-xl px-6 flex items-center justify-between mb-8 z-30">
         <button onClick={() => setCurrentScreen('tasks')} className="p-2 text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors"><ChevronDown size={28} strokeWidth={1} /></button>
         <button onClick={() => setShowTaskSelector(true)} className="bg-white/80 dark:bg-black/30 dark:hover:bg-black/40 backdrop-blur-md border border-slate-200 dark:border-white/10 px-6 py-2.5 rounded-full flex items-center gap-3 text-slate-800 dark:text-white shadow-sm dark:shadow-lg transition-colors cursor-pointer">
           <div className={`w-2 h-2 rounded-full transition-all duration-700 ${isActive ? 'bg-indigo-500 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.8)]' : 'bg-slate-300 dark:bg-slate-500'}`}></div>
-          <span className="text-[13px] font-medium tracking-wide max-w-[200px] truncate">{activeTask ? activeTask.title : "Select a Task"}</span>
+          <span className="text-[13px] font-medium tracking-wide max-w-[200px] truncate">{activeTask ? activeTask.title : t("কাজ বাছাই করো", "Select a Task")}</span>
           <ChevronDown size={14} className="text-slate-400 dark:text-white/50" />
         </button>
         <button onClick={() => setShowStopModal(true)} className="p-2 text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={26} strokeWidth={1} /></button>
@@ -643,23 +664,23 @@ export default function PomodoroPage() {
             {formatTime(timeLeft)}
           </span>
           <span className="text-[11px] font-bold uppercase tracking-[0.4em] mt-2 text-slate-500 dark:text-white/70">
-            {activeTask ? activeTask.category : (mode === 'pomodoro' ? activeCategory : mode === 'shortBreak' ? 'Short Break' : 'Long Break')}
+            {activeTask ? activeTask.category : (mode === 'pomodoro' ? activeCategory : mode === 'shortBreak' ? t("ছোট বিরতি", "Short Break") : t("লম্বা বিরতি", "Long Break"))}
           </span>
           {!isActive && (
             <span className="absolute -bottom-8 text-[10px] font-bold text-slate-400 dark:text-slate-500 opacity-60 animate-pulse tracking-wider">
-              ⟵ SWIPE ⟶
+              {t("⟵ সরিয়ে সময় বদলাও ⟶", "⟵ SWIPE ⟶")}
             </span>
           )}
         </div>
       </div>
       
       <div className="mt-auto mb-10 pb-[env(safe-area-inset-bottom)] z-20 w-full px-10 flex justify-center items-center gap-4 h-[60px] relative">
-        {isInitialState && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">Start to Focus</button>}
-        {isActive && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">Pause</button>}
+        {isInitialState && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">{t("ফোকাস শুরু করো", "Start to Focus")}</button>}
+        {isActive && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">{t("থামাও", "Pause")}</button>}
         {isPausedState && (
           <div className="absolute flex items-center gap-4">
-            <button onClick={startOrPause} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">Continue</button>
-            <button onClick={() => setShowStopModal(true)} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">Stop</button>
+            <button onClick={startOrPause} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">{t("চালিয়ে যাও", "Continue")}</button>
+            <button onClick={() => setShowStopModal(true)} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">{t("বন্ধ করো", "Stop")}</button>
           </div>
         )}
       </div>
@@ -673,29 +694,29 @@ export default function PomodoroPage() {
           <div className="fixed inset-0" onClick={() => setIsAddingTask(false)} />
           <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-3xl p-5 shadow-2xl animate-in zoom-in-95 duration-300 relative z-10 border border-slate-200 dark:border-white/5">
             <div className="flex justify-between items-center mb-5 ml-2">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create New Task</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t("নতুন কাজ", "Create New Task")}</h3>
               <button onClick={() => setIsAddingTask(false)} className="p-2 bg-slate-100 dark:bg-[#2c2c2e] rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"><X size={18} /></button>
             </div>
 
             <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#2c2c2e] p-3.5 rounded-xl border border-slate-200 dark:border-white/5 mb-4">
               <Circle size={20} className="text-slate-400 shrink-0" />
-              <input autoFocus type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitNewTask()} placeholder="What are you working on?" className="w-full bg-transparent outline-none text-base font-medium text-slate-900 dark:text-white placeholder-slate-400" />
+              <input autoFocus type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitNewTask()} placeholder={t("কী পড়বে?", "What are you working on?")} className="w-full bg-transparent outline-none text-base font-medium text-slate-900 dark:text-white placeholder-slate-400" />
             </div>
 
             <div className="flex flex-wrap gap-2 mb-4 px-1">
-              <span className="text-[10px] font-bold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 px-2 py-1 rounded-md flex items-center gap-1">🍅 {estimatedPomos}</span>
-              {addDate !== "Today" && <span className="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-md">{addDate}</span>}
-              {addPriority > 0 && <span className={`text-[10px] font-bold bg-slate-100 dark:bg-[#3a3a3c] px-2 py-1 rounded-md ${getPriorityColor(addPriority)}`}>Priority {addPriority}</span>}
+              <span className="text-[10px] font-bold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 px-2 py-1 rounded-md flex items-center gap-1">🍅 {n(estimatedPomos)}</span>
+              {addDate !== "Today" && <span className="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-md">{listLabel(addDate)}</span>}
+              {addPriority > 0 && <span className={`text-[10px] font-bold bg-slate-100 dark:bg-[#3a3a3c] px-2 py-1 rounded-md ${getPriorityColor(addPriority)}`}>{getPriorityLabel(addPriority)}</span>}
               {addCategory !== "HSC" && <span className="text-[10px] font-bold bg-slate-100 dark:bg-[#3a3a3c] text-slate-400 px-2 py-1 rounded-md">{addCategory}</span>}
             </div>
 
             <div className="bg-slate-50 dark:bg-black/20 rounded-2xl p-4 h-24 mb-5 border border-slate-100 dark:border-white/5 flex items-center justify-center">
               {addTab === 'pomo' && (
                 <div className="w-full animate-in fade-in zoom-in-95 duration-200">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">Estimated Pomodoros</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">{t("কয়টা পোমোডোরো লাগবে", "Estimated Pomodoros")}</p>
                   <div className="flex justify-center gap-2 overflow-x-auto scrollbar-hide px-2">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
-                      <button key={num} onClick={() => setEstimatedPomos(num)} className={`shrink-0 w-10 h-10 rounded-full font-bold text-sm transition-all ${estimatedPomos === num ? 'bg-red-500 text-white shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{num}</button>
+                      <button key={num} onClick={() => setEstimatedPomos(num)} className={`shrink-0 w-10 h-10 rounded-full font-bold text-sm transition-all ${estimatedPomos === num ? 'bg-red-500 text-white shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{n(num)}</button>
                     ))}
                   </div>
                 </div>
@@ -703,7 +724,7 @@ export default function PomodoroPage() {
               {addTab === 'date' && (
                 <div className="w-full flex justify-center gap-2 animate-in fade-in zoom-in-95 duration-200">
                   {["Today", "Tomorrow", "This Week", "Planned"].map(option => (
-                    <button key={option} onClick={() => setAddDate(option)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${addDate === option ? 'bg-indigo-500 text-white shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{option}</button>
+                    <button key={option} onClick={() => setAddDate(option)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${addDate === option ? 'bg-indigo-500 text-white shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{listLabel(option)}</button>
                   ))}
                 </div>
               )}
@@ -732,7 +753,7 @@ export default function PomodoroPage() {
                 <button onClick={() => setAddTab('tag')} className={`p-3 rounded-xl transition-colors ${addTab === 'tag' ? 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-900 dark:text-white' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2c2c2e]'}`}><Tag size={20}/></button>
               </div>
               <button onClick={submitNewTask} className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-indigo-500/30 font-bold text-sm transition-transform active:scale-95 flex items-center gap-2">
-                Save Task <Send size={16} />
+                {t("রাখো", "Save Task")} <Send size={16} />
               </button>
             </div>
           </div>
@@ -757,12 +778,12 @@ export default function PomodoroPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 dark:bg-[#2c2c2e] rounded-xl flex flex-col items-center justify-center p-4 border border-slate-100 dark:border-white/5">
                   <span className="text-2xl mb-1">🍅</span>
-                  <span className="text-sm font-bold text-slate-800 dark:text-white">{editingTask.completedPomodoros || 0} / {editingTask.estimatedPomodoros || 1}</span>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Pomodoros</span>
+                  <span className="text-sm font-bold text-slate-800 dark:text-white">{n(editingTask.completedPomodoros || 0)} / {n(editingTask.estimatedPomodoros || 1)}</span>
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">{t("পোমোডোরো", "Pomodoros")}</span>
                 </div>
                 <div className="flex flex-col gap-3 justify-center">
                   <button onClick={() => setEditModalField(prev => prev === 'category' ? 'none' : 'category')} className="w-full flex items-center justify-center gap-2 bg-indigo-50 dark:bg-[#28283a] text-indigo-600 dark:text-indigo-400 p-3.5 rounded-xl text-sm font-semibold border border-indigo-100 dark:border-indigo-500/20 transition-transform active:scale-95">
-                    <Tag size={16}/> {editingTask.category || "Add Tags"}
+                    <Tag size={16}/> {editingTask.category || t("ট্যাগ দাও", "Add Tags")}
                   </button>
                   <button onClick={() => setEditModalField(prev => prev === 'priority' ? 'none' : 'priority')} className={`w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-[#2c2c2e] p-3.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-white/5 transition-transform active:scale-95 ${editingTask.priority ? getPriorityColor(editingTask.priority) : "text-slate-500 dark:text-slate-300"}`}>
                     <Flag size={16}/> {getPriorityLabel(editingTask.priority)}
@@ -780,23 +801,23 @@ export default function PomodoroPage() {
 
               {editModalField === 'priority' && (
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 animate-in fade-in slide-in-from-top-2">
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 3 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-500/10 text-red-500">High</button>
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 2 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-500/10 text-orange-500">Medium</button>
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 1 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-500">Low</button>
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 0 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#2c2c2e] text-slate-400">None</button>
+                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 3 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-500/10 text-red-500">{t("বেশি", "High")}</button>
+                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 2 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-500/10 text-orange-500">{t("মাঝারি", "Medium")}</button>
+                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 1 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-500">{t("কম", "Low")}</button>
+                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 0 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#2c2c2e] text-slate-400">{t("নেই", "None")}</button>
                 </div>
               )}
 
               <div className="bg-white dark:bg-[#2c2c2e] border border-slate-200 dark:border-white/5 rounded-xl flex flex-col divide-y divide-slate-100 dark:divide-white/5">
                 <div className="flex flex-col">
                   <div onClick={() => setEditModalField(prev => prev === 'dueDate' ? 'none' : 'dueDate')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><CalendarDays size={18}/> <span className="text-sm font-medium">Due Date</span></div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-md ${editingTask.dueDate && editingTask.dueDate !== "None" ? 'bg-indigo-100 dark:bg-[#3a3a3c] text-indigo-600 dark:text-blue-400' : 'text-slate-500 bg-slate-100 dark:bg-transparent'}`}>{editingTask.dueDate || "Today"}</span>
+                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><CalendarDays size={18}/> <span className="text-sm font-medium">{t("কবে", "Due Date")}</span></div>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-md ${editingTask.dueDate && editingTask.dueDate !== "None" ? 'bg-indigo-100 dark:bg-[#3a3a3c] text-indigo-600 dark:text-blue-400' : 'text-slate-500 bg-slate-100 dark:bg-transparent'}`}>{listLabel(editingTask.dueDate || "Today")}</span>
                   </div>
                   {editModalField === 'dueDate' && (
                     <div className="px-4 pb-4 flex gap-2 overflow-x-auto scrollbar-hide animate-in fade-in slide-in-from-top-2">
                       {["Today", "Tomorrow", "This Week", "Planned", "None"].map(opt => (
-                        <button key={opt} onClick={() => { handleUpdateTaskDetails(editingTask.id, { dueDate: opt === "None" ? null : opt, list: opt === "None" ? "Today" : opt }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${editingTask.dueDate === opt || (!editingTask.dueDate && opt === "Today") ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{opt}</button>
+                        <button key={opt} onClick={() => { handleUpdateTaskDetails(editingTask.id, { dueDate: opt === "None" ? null : opt, list: opt === "None" ? "Today" : opt }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${editingTask.dueDate === opt || (!editingTask.dueDate && opt === "Today") ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{listLabel(opt)}</button>
                       ))}
                     </div>
                   )}
@@ -804,8 +825,8 @@ export default function PomodoroPage() {
                 
                 <div className="flex flex-col">
                   <div onClick={() => setEditModalField(prev => prev === 'reminder' ? 'none' : 'reminder')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Bell size={18}/> <span className="text-sm font-medium">Reminder</span></div>
-                    <span className="text-xs font-medium text-slate-400">{isClock(editingTask.reminder) ? formatClock(editingTask.reminder) : "None"}</span>
+                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Bell size={18}/> <span className="text-sm font-medium">{t("রিমাইন্ডার", "Reminder")}</span></div>
+                    <span className="text-xs font-medium text-slate-400">{isClock(editingTask.reminder) ? n(formatClock(editingTask.reminder)) : t("নেই", "None")}</span>
                   </div>
                   {editModalField === 'reminder' && (
                     <div className="px-4 pb-4 space-y-3 animate-in fade-in slide-in-from-top-2">
@@ -816,14 +837,14 @@ export default function PomodoroPage() {
                               onChange={(e) => { if (isClock(e.target.value)) handleUpdateTaskDetails(editingTask.id, { reminder: e.target.value }); }}
                               className="flex-1 bg-slate-100 dark:bg-[#3a3a3c] text-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm font-bold outline-none" />
                             {isClock(editingTask.reminder) && (
-                              <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { reminder: null }); setEditModalField('none'); }} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#3a3a3c] text-slate-500">Remove</button>
+                              <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { reminder: null }); setEditModalField('none'); }} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#3a3a3c] text-slate-500">{t("মুছে দাও", "Remove")}</button>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400">Machranga bot will message you on Telegram at this time{editingTask.dueDate === "Tomorrow" ? " tomorrow" : ""}.</p>
+                          <p className="text-[11px] text-slate-400">{editingTask.dueDate === "Tomorrow" ? t("আগামীকাল এই সময়ে মাছরাঙা বট Telegram এ মনে করাবে।", "Machranga bot will message you on Telegram at this time tomorrow.") : t("এই সময়ে মাছরাঙা বট Telegram এ মনে করাবে।", "Machranga bot will message you on Telegram at this time.")}</p>
                         </>
                       ) : (
                         <button onClick={() => router.push('/profile')} className="w-full text-left p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-semibold">
-                          <Send size={14} className="inline mr-1.5 -mt-0.5" /> Reminders come on Telegram. Link the Machranga bot in your Profile first →
+                          <Send size={14} className="inline mr-1.5 -mt-0.5" /> {t("রিমাইন্ডার আসে Telegram এ। আগে প্রোফাইলে মাছরাঙা বট যুক্ত করো →", "Reminders come on Telegram. Link the Machranga bot in your Profile first →")}
                         </button>
                       )}
                     </div>
@@ -832,26 +853,26 @@ export default function PomodoroPage() {
 
                 <div className="flex flex-col">
                   <div onClick={() => setEditModalField(prev => prev === 'repeat' ? 'none' : 'repeat')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Repeat size={18}/> <span className="text-sm font-medium">Repeat</span></div>
-                    <span className="text-xs font-medium text-slate-400">{repeatLabel(editingTask.repeat)}</span>
+                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Repeat size={18}/> <span className="text-sm font-medium">{t("বারবার", "Repeat")}</span></div>
+                    <span className="text-xs font-medium text-slate-400">{repeatText(editingTask.repeat)}</span>
                   </div>
                   {editModalField === 'repeat' && (
                     <div className="px-4 pb-4 space-y-2 animate-in fade-in slide-in-from-top-2">
                       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                        {REPEATS.map(([key, label]) => (
-                          <button key={key} onClick={() => { handleUpdateTaskDetails(editingTask.id, { repeat: key || null }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${repeatKey(editingTask.repeat) === key ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{label}</button>
+                        {REPEATS.map(([key]) => (
+                          <button key={key} onClick={() => { handleUpdateTaskDetails(editingTask.id, { repeat: key || null }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${repeatKey(editingTask.repeat) === key ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{repeatText(key)}</button>
                         ))}
                       </div>
-                      <p className="text-[11px] text-slate-400">A finished repeating task comes back on its next day.</p>
+                      <p className="text-[11px] text-slate-400">{t("শেষ করা কাজ নিয়মের পরের দিনে আবার ফিরে আসবে।", "A finished repeating task comes back on its next day.")}</p>
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">Notes</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">{t("নোট", "Notes")}</h4>
                 <textarea 
-                  placeholder="Add a note..." 
+                  placeholder={t("নোট লেখো...", "Add a note...")} 
                   value={editingTask.notes || ""}
                   onChange={(e) => handleUpdateTaskDetails(editingTask.id, { notes: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-[#2c2c2e] border border-slate-200 dark:border-white/5 rounded-xl p-4 text-sm outline-none resize-none h-32 text-slate-800 dark:text-white placeholder-slate-500 transition-colors"
@@ -867,16 +888,16 @@ export default function PomodoroPage() {
           <div className="fixed inset-0" onClick={() => setShowTaskSelector(false)} />
           <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-100 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[60vh] relative z-10">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white ml-1">Select Task</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white ml-1">{t("কাজ বাছাই করো", "Select Task")}</h3>
               <button onClick={() => setShowTaskSelector(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10 transition-colors rounded-full"><X size={18} /></button>
             </div>
             <div className="relative mb-4 shrink-0">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><Plus size={18} className="text-slate-500 dark:text-slate-400" /></div>
-              <input type="text" value={quickNewTaskTitle} onChange={(e) => setQuickNewTaskTitle(e.target.value)} onKeyDown={handleQuickAddTask} placeholder="Type new task & press Enter..." className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-slate-500 focus:bg-white dark:focus:bg-white/10 outline-none transition-all" />
+              <input type="text" value={quickNewTaskTitle} onChange={(e) => setQuickNewTaskTitle(e.target.value)} onKeyDown={handleQuickAddTask} placeholder={t("নতুন কাজ লিখে Enter চাপো...", "Type new task & press Enter...")} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-slate-500 focus:bg-white dark:focus:bg-white/10 outline-none transition-all" />
             </div>
             <div className="overflow-y-auto space-y-2 pr-1 scrollbar-hide flex-1">
               {tasks.length === 0 ? (
-                <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-4">No tasks available.</p>
+                <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-4">{t("এখনো কোনো কাজ নেই।", "No tasks available.")}</p>
               ) : (
                 tasks.map(task => (
                   <button key={task.id} onClick={() => { setActiveTask(task); setShowTaskSelector(false); }} className={`w-full flex items-center gap-3 p-3 border rounded-xl transition-colors text-left ${activeTask?.id === task.id ? 'bg-slate-100 border-slate-300 dark:bg-slate-800 dark:border-slate-600' : 'bg-white border-slate-100 hover:bg-slate-50 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10'}`}>
@@ -893,10 +914,10 @@ export default function PomodoroPage() {
       {showStopModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm px-5">
           <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-xs rounded-3xl p-6 shadow-2xl animate-in zoom-in-95">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white text-center mb-6">Stop Session?</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white text-center mb-6">{t("সেশন বন্ধ করবে?", "Stop Session?")}</h3>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowStopModal(false)} className="flex-1 py-3.5 rounded-xl text-slate-700 dark:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 font-medium">Cancel</button>
-              <button onClick={confirmStopTimer} className="flex-1 py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20">Stop</button>
+              <button onClick={() => setShowStopModal(false)} className="flex-1 py-3.5 rounded-xl text-slate-700 dark:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 font-medium">{t("না", "Cancel")}</button>
+              <button onClick={confirmStopTimer} className="flex-1 py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20">{t("বন্ধ করো", "Stop")}</button>
             </div>
           </div>
         </div>
@@ -926,10 +947,10 @@ export default function PomodoroPage() {
               }`}
             >
               <span className="text-xl font-bold tracking-tight tabular-nums mt-0.5">
-                {currentMinutes}
+                {n(currentMinutes)}
               </span>
               <span className={`text-[9px] uppercase tracking-widest font-bold -mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
-                {isActive ? 'Focus' : 'Min'}
+                {isActive ? t("ফোকাস", "Focus") : t("মিনিট", "Min")}
               </span>
             </button>
           </div>

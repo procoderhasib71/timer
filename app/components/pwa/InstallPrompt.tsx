@@ -3,8 +3,10 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { useLang } from "@/lib/i18n";
 
 export default function InstallPrompt() {
+  const { t } = useLang();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
@@ -38,15 +40,15 @@ export default function InstallPrompt() {
   return (
     <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-indigo-600 text-white p-4 rounded-2xl shadow-xl z-50 flex items-center justify-between transition-all">
       <div className="flex flex-col">
-        <span className="font-bold text-sm">Install Pomodoro BD</span>
-        <span className="text-[10px] opacity-80">Add to home screen for offline use</span>
+        <span className="font-bold text-sm">{t("Pomodoro BD ইনস্টল করো", "Install Pomodoro BD")}</span>
+        <span className="text-[10px] opacity-80">{t("হোম স্ক্রিনে রাখো, অ্যাপের মতো খুলবে", "Add it to your home screen like an app")}</span>
       </div>
       <div className="flex items-center gap-3">
         <button
           onClick={handleInstall}
           className="bg-white text-indigo-600 px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm active:scale-95 transition-transform"
         >
-          Install
+          {t("ইনস্টল", "Install")}
         </button>
         <button onClick={() => setShowPrompt(false)} className="p-1 opacity-70 hover:opacity-100 transition-opacity">
           <X size={20} />
