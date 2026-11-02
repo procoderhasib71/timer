@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Calendar, CalendarDays, CheckCircle2, ChevronRight, 
-  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send,
+  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2,
   
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
@@ -122,7 +122,7 @@ export default function PomodoroPage() {
 
   const { account, botLinked } = useAccount();
   // Timer Hook
-  const { mode, timeLeft, isActive, toggleTimer, resetTimer, adjustTime, initialDuration, changeMode, getSettings, restored } = useTimer("pomodoro", handleTimerFinish,
+  const { mode, timeLeft, isActive, toggleTimer, adjustTime, initialDuration, changeMode, getSettings, restored } = useTimer("pomodoro", handleTimerFinish,
     // বটে যুক্ত থাকলে টাইমার শেষে Telegram এ মেসেজ (অ্যাপ বন্ধ থাকলেও); অ্যাপেই শেষ হলে বাতিল, যাতে দুবার না বাজে
     (endAt, m) => { if (botLinked) botTimer(auth, endAt, m); });
   const [activeCategory, setActiveCategory] = useState("HSC");
@@ -239,6 +239,7 @@ export default function PomodoroPage() {
         // চলতি টাস্কের নতুন তথ্য; না থাকলে আগে যেটায় কাজ চলছিল, নইলে প্রথম অসম্পূর্ণ টাস্ক
         setActiveTask((prev) => {
           const wanted = prev?.id || localStorage.getItem('pomodoro_active_task');
+          if (wanted === 'none') return null;   // "কাজ ছাড়াই ফোকাস" বাছাই করা
           return fetchedTasks.find((t) => t.id === wanted) || prev || fetchedTasks.find((t) => !t.completed) || null;
         });
       });
@@ -323,7 +324,7 @@ export default function PomodoroPage() {
   const confirmStopTimer = () => {
     const { timeLeft, isActive, initialDuration } = sessionState.current;
     if (isActive || timeLeft < initialDuration) saveFocusSession(timeLeft, false);
-    resetTimer();
+    changeMode('pomodoro');
     setShowStopModal(false);
     setCurrentScreen('home');
   };
@@ -425,7 +426,7 @@ export default function PomodoroPage() {
     setDragLastX(null);
   };
 
-  const svgSize = 420; const center = svgSize / 2; const radius = 145; const circumference = 2 * Math.PI * radius;
+  const svgSize = 340; const center = svgSize / 2; const radius = 128; const circumference = 2 * Math.PI * radius;
   const progress = initialDuration > 0 ? ((initialDuration - timeLeft) / initialDuration) * 100 : 0;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
@@ -663,67 +664,121 @@ export default function PomodoroPage() {
     </div>
   );
 
+  // টাইমারের পর্দা: প্রতিটা ধরনের নিজের রং (ফোকাস বেগুনি, ছোট বিরতি সবুজ, লম্বা বিরতি নীল)
+  const MODE_STYLE: Record<TimerMode, { label: string; from: string; to: string; glow: string; text: string }> = {
+    pomodoro: { label: t("ফোকাস", "Focus"), from: "#6366f1", to: "#a855f7", glow: "bg-indigo-500/25", text: "text-indigo-600 dark:text-indigo-300" },
+    shortBreak: { label: t("ছোট বিরতি", "Short Break"), from: "#10b981", to: "#14b8a6", glow: "bg-emerald-500/20", text: "text-emerald-600 dark:text-emerald-300" },
+    longBreak: { label: t("লম্বা বিরতি", "Long Break"), from: "#0ea5e9", to: "#6366f1", glow: "bg-sky-500/20", text: "text-sky-600 dark:text-sky-300" },
+  };
+  const ms = MODE_STYLE[mode];
+  const longEvery = getSettings().longBreakInterval || 4;
+  const doneInCycle = (activeTask?.completedPomodoros || 0) % longEvery;
+  const endsAt = new Date(Date.now() + timeLeft * 1000).toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit', hour12: true });
+  const knobAngle = (progress / 100) * 2 * Math.PI - Math.PI / 2;
+  const statusText = isActive
+    ? t(`শেষ হবে ${endsAt}`, `Ends at ${endsAt}`)
+    : isPausedState ? t("থেমে আছে", "Paused") : t("শুরু করতে প্রস্তুত", "Ready when you are");
+
+  const pickMode = (m: TimerMode) => { if (!isActive && !isPausedState && m !== mode) changeMode(m); };
+  const skipBreak = () => changeMode('pomodoro');
+  const closeTimer = () => setCurrentScreen('home');
+  const roundBtn = "w-14 h-14 rounded-full flex items-center justify-center bg-white/80 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 active:scale-90 transition-all shadow-sm";
+
   const renderTimerScreen = () => (
-    <div className="fixed inset-0 z-[60] flex flex-col items-center pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(3rem+env(safe-area-inset-bottom))] bg-slate-50 dark:bg-[#0f172a] animate-in fade-in zoom-in-95 duration-300 h-full w-full">
-      <div className="w-full max-w-xl px-6 flex items-center justify-between mb-8 z-30">
-        <button onClick={() => setCurrentScreen('tasks')} className="p-2 text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors"><ChevronDown size={28} strokeWidth={1} /></button>
-        <button onClick={() => setShowTaskSelector(true)} className="bg-white/80 dark:bg-black/30 dark:hover:bg-black/40 backdrop-blur-md border border-slate-200 dark:border-white/10 px-6 py-2.5 rounded-full flex items-center gap-3 text-slate-800 dark:text-white shadow-sm dark:shadow-lg transition-colors cursor-pointer">
-          <div className={`w-2 h-2 rounded-full transition-all duration-700 ${isActive ? 'bg-indigo-500 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.8)]' : 'bg-slate-300 dark:bg-slate-500'}`}></div>
-          <span className="text-[13px] font-medium tracking-wide max-w-[200px] truncate">{activeTask ? activeTask.title : t("কাজ বাছাই করো", "Select a Task")}</span>
-          <ChevronDown size={14} className="text-slate-400 dark:text-white/50" />
+    <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-hidden bg-slate-50 dark:bg-[#0b1120] pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] animate-in fade-in zoom-in-95 duration-300">
+      {/* পেছনের রঙিন আভা, ধরন অনুযায়ী */}
+      <div className={`absolute -top-32 left-1/2 -translate-x-1/2 w-[34rem] h-[34rem] rounded-full blur-3xl pointer-events-none transition-colors duration-700 ${ms.glow} ${isActive ? 'opacity-100' : 'opacity-60'}`} />
+
+      <div className="relative w-full max-w-md px-5 flex items-center justify-between gap-3">
+        <button onClick={closeTimer} aria-label={t("ছোট করো", "Minimize")} className="p-2.5 rounded-full text-slate-500 dark:text-white/60 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors"><ChevronDown size={24} /></button>
+        <button onClick={() => setShowTaskSelector(true)} className="min-w-0 flex-1 max-w-[240px] bg-white/80 dark:bg-white/[0.06] backdrop-blur-md border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-full flex items-center justify-center gap-2 text-slate-800 dark:text-white shadow-sm transition-colors">
+          <span className={`w-2 h-2 shrink-0 rounded-full ${isActive ? 'animate-pulse' : 'opacity-50'}`} style={{ background: ms.from }} />
+          <span className="text-[13px] font-semibold truncate">{activeTask ? activeTask.title : t("কাজ বাছাই করো", "Select a task")}</span>
+          <ChevronDown size={14} className="shrink-0 text-slate-400" />
         </button>
-        <button onClick={() => setShowStopModal(true)} className="p-2 text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={26} strokeWidth={1} /></button>
+        <button onClick={() => sheet.open('settings')} aria-label={t("টাইমারের সেটিংস", "Timer settings")} className="p-2.5 rounded-full text-slate-500 dark:text-white/60 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors"><Settings2 size={22} /></button>
       </div>
 
-      <div 
-        className={`relative flex items-center justify-center mt-auto mb-auto transition-transform duration-1000 ease-out select-none ${isActive ? 'scale-[1.02]' : 'scale-100'} ${!isActive ? 'cursor-ew-resize' : ''}`}
-        onTouchStart={handleDragStart}
-        onTouchMove={handleDragMove}
-        onTouchEnd={handleDragEnd}
-        onMouseDown={handleDragStart}
-        onMouseMove={handleDragMove}
-        onMouseUp={handleDragEnd}
-        onMouseLeave={handleDragEnd}
+      {/* ফোকাস / ছোট বিরতি / লম্বা বিরতি: চলার সময় বদলানো যায় না */}
+      <div className="relative mt-5 p-1 rounded-2xl bg-slate-200/60 dark:bg-white/[0.05] flex gap-1">
+        {(Object.keys(MODE_STYLE) as TimerMode[]).map((m) => {
+          const locked = (isActive || isPausedState) && m !== mode;
+          return (
+            <button key={m} onClick={() => pickMode(m)} disabled={locked}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${m === mode ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'} ${locked ? 'opacity-40' : ''}`}>
+              {MODE_STYLE[m].label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        className={`relative my-auto w-[min(80vw,340px)] aspect-square select-none touch-pan-y ${isInitialState ? 'cursor-ew-resize' : ''}`}
+        onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
+        onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
       >
-        <svg width={svgSize} height={svgSize} className="relative z-10 drop-shadow-sm dark:drop-shadow-xl pointer-events-none">
-          <g className={`transition-opacity duration-1000 ease-out ${isActive ? 'opacity-100' : 'opacity-0'}`} style={{ transformOrigin: `${center}px ${center}px` }}>
-            <g style={{ transformOrigin: `${center}px ${center}px`, animationDuration: '40s' }} className={`animate-spin ${!isActive ? 'animation-paused' : ''}`}>
-              <circle cx={center} cy={center} r={radius + 35} stroke="currentColor" strokeWidth="1" fill="transparent" className="text-slate-200 dark:text-white/10" />
-              <circle cx={center} cy={center - (radius + 35)} r="2" fill="currentColor" className="text-slate-900 dark:text-white/80" />
-            </g>
-            <g style={{ transformOrigin: `${center}px ${center}px`, animationDuration: '25s', animationDirection: 'reverse' }} className={`animate-spin ${!isActive ? 'animation-paused' : ''}`}>
-              <circle cx={center} cy={center} r={radius + 15} stroke="currentColor" strokeWidth="1" fill="transparent" className="text-slate-200 dark:text-white/10" />
-              <circle cx={center} cy={center - (radius + 15)} r="3" fill="currentColor" className="text-slate-900 dark:text-white/80" />
-            </g>
-          </g>
-          <circle cx={center} cy={center} r={radius} stroke="currentColor" strokeWidth="2" fill="transparent" className="text-slate-200 dark:text-white/15" />
-          <circle cx={center} cy={center} r={radius} stroke="currentColor" strokeWidth="3" fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="text-slate-900 dark:text-white transition-all duration-1000 ease-linear" transform={`rotate(-90 ${center} ${center})`} />
+        <svg viewBox={`0 0 ${svgSize} ${svgSize}`} className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none overflow-visible">
+          <defs>
+            <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor={ms.from} />
+              <stop offset="100%" stopColor={ms.to} />
+            </linearGradient>
+          </defs>
+          {/* ঘড়ির দাগ: প্রতি ৫ টায় একটা লম্বা */}
+          {Array.from({ length: 60 }).map((_, i) => {
+            const a = (i / 60) * 2 * Math.PI, long = i % 5 === 0;
+            const r1 = radius + 16, r2 = radius + (long ? 24 : 20);
+            return <line key={i} x1={center + r1 * Math.cos(a)} y1={center + r1 * Math.sin(a)} x2={center + r2 * Math.cos(a)} y2={center + r2 * Math.sin(a)}
+              stroke="currentColor" strokeWidth={long ? 2 : 1} strokeLinecap="round"
+              className={i / 60 < progress / 100 ? '' : 'text-slate-300 dark:text-white/10'} style={i / 60 < progress / 100 ? { color: ms.from } : undefined} />;
+          })}
+          <circle cx={center} cy={center} r={radius} stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-200/80 dark:text-white/[0.06]" />
+          <circle cx={center} cy={center} r={radius} stroke="url(#ring-grad)" strokeWidth="12" fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round"
+            className="transition-[stroke-dashoffset] duration-300 ease-linear" style={{ filter: isActive ? `drop-shadow(0 0 10px ${ms.from}66)` : undefined }} />
+          {progress > 0 && <circle cx={center + radius * Math.cos(knobAngle + Math.PI / 2)} cy={center + radius * Math.sin(knobAngle + Math.PI / 2)} r="9" fill="white" stroke={ms.to} strokeWidth="4" />}
         </svg>
-        <div className="absolute flex flex-col items-center justify-center z-20 pointer-events-none">
-          <span className="text-[5rem] font-extralight tracking-wider tabular-nums text-slate-800 dark:text-white">
-            {formatTime(timeLeft)}
-          </span>
-          <span className="text-[11px] font-bold uppercase tracking-[0.4em] mt-2 text-slate-500 dark:text-white/70">
-            {activeTask ? activeTask.category : (mode === 'pomodoro' ? activeCategory : mode === 'shortBreak' ? t("ছোট বিরতি", "Short Break") : t("লম্বা বিরতি", "Long Break"))}
-          </span>
-          {!isActive && (
-            <span className="absolute -bottom-8 text-[10px] font-bold text-slate-400 dark:text-slate-500 opacity-60 animate-pulse tracking-wider">
-              {t("⟵ সরিয়ে সময় বদলাও ⟶", "⟵ SWIPE ⟶")}
-            </span>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className={`text-[11px] font-extrabold uppercase tracking-[0.3em] ${ms.text}`}>{ms.label}</span>
+          <span className="mt-1 text-[clamp(3.6rem,18vw,5.2rem)] leading-none font-light tracking-tight tabular-nums text-slate-900 dark:text-white">{formatTime(timeLeft)}</span>
+          <span className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">{statusText}</span>
+          {activeTask && mode === 'pomodoro' && (
+            <div className="mt-3 flex gap-1.5" aria-label={t("লম্বা বিরতির আগে সেশন", "Sessions before long break")}>
+              {Array.from({ length: longEvery }).map((_, i) => (
+                <span key={i} className={`h-1.5 rounded-full transition-all ${i < doneInCycle ? 'w-4' : i === doneInCycle && isActive ? 'w-4 animate-pulse' : 'w-1.5 bg-slate-300 dark:bg-white/15'}`}
+                  style={i < doneInCycle || (i === doneInCycle && isActive) ? { background: ms.from, opacity: i < doneInCycle ? 1 : 0.5 } : undefined} />
+              ))}
+            </div>
           )}
         </div>
       </div>
-      
-      <div className="mt-auto mb-10 pb-[env(safe-area-inset-bottom)] z-20 w-full px-10 flex justify-center items-center gap-4 h-[60px] relative">
-        {isInitialState && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">{t("ফোকাস শুরু করো", "Start to Focus")}</button>}
-        {isActive && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">{t("থামাও", "Pause")}</button>}
-        {isPausedState && (
-          <div className="absolute flex items-center gap-4">
-            <button onClick={startOrPause} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">{t("চালিয়ে যাও", "Continue")}</button>
-            <button onClick={() => setShowStopModal(true)} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">{t("বন্ধ করো", "Stop")}</button>
-          </div>
-        )}
+
+      {/* শুরুর আগে সময় কমানো/বাড়ানো (রিংয়ে আঙুল সরিয়েও হয়) */}
+      <div className={`relative flex items-center gap-3 mb-6 transition-opacity ${isInitialState ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <button onClick={() => adjustTime(-5 * 60)} className="px-4 py-2 rounded-full text-sm font-bold bg-white/80 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 active:scale-95 transition-all">−{n(5)}</button>
+        <span className="text-[11px] font-medium text-slate-400">{t("মিনিট বদলাও", "Adjust minutes")}</span>
+        <button onClick={() => adjustTime(5 * 60)} className="px-4 py-2 rounded-full text-sm font-bold bg-white/80 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 active:scale-95 transition-all">+{n(5)}</button>
       </div>
+
+      <div className="relative w-full max-w-xs flex items-center justify-between px-4">
+        {isActive || isPausedState
+          ? <button onClick={() => setShowStopModal(true)} aria-label={t("বন্ধ করো", "Stop")} className={roundBtn}><Square size={18} fill="currentColor" /></button>
+          : <button onClick={closeTimer} aria-label={t("বন্ধ করো", "Close")} className={roundBtn}><X size={20} /></button>}
+
+        <button onClick={startOrPause} aria-label={isActive ? t("থামাও", "Pause") : t("শুরু করো", "Start")}
+          className="relative w-20 h-20 rounded-full flex items-center justify-center text-white active:scale-90 hover:scale-105 transition-transform"
+          style={{ background: `linear-gradient(135deg, ${ms.from}, ${ms.to})`, boxShadow: `0 14px 34px -10px ${ms.from}` }}>
+          {isActive && <span className="absolute inset-0 rounded-full animate-ping opacity-20" style={{ background: ms.from }} />}
+          {isActive ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" className="ml-1" />}
+        </button>
+
+        {mode !== 'pomodoro'
+          ? <button onClick={skipBreak} aria-label={t("বিরতি বাদ দাও", "Skip break")} className={roundBtn}><SkipForward size={20} /></button>
+          : <button onClick={() => setShowTaskSelector(true)} aria-label={t("কাজ বাছাই করো", "Select a task")} className={roundBtn}><ListTodo size={20} /></button>}
+      </div>
+      <p className="relative mt-3 h-4 text-[11px] font-semibold text-slate-400">
+        {isInitialState ? (mode === 'pomodoro' ? t("শুরু চাপো, ফোন সরিয়ে রাখো", "Press start and put your phone away") : t("একটু হাঁটো, পানি খাও", "Stretch and drink some water")) : isPausedState ? t("চালিয়ে যেতে চাপো", "Tap to continue") : ""}
+      </p>
     </div>
   );
 
@@ -936,10 +991,14 @@ export default function PomodoroPage() {
               <input type="text" value={quickNewTaskTitle} onChange={(e) => setQuickNewTaskTitle(e.target.value)} onKeyDown={handleQuickAddTask} placeholder={t("নতুন কাজ লিখে Enter চাপো...", "Type new task & press Enter...")} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-slate-500 focus:bg-white dark:focus:bg-white/10 outline-none transition-all" />
             </div>
             <div className="overflow-y-auto space-y-2 pr-1 scrollbar-hide flex-1">
-              {tasks.length === 0 ? (
+              <button onClick={() => { setActiveTask(null); localStorage.setItem('pomodoro_active_task', 'none'); setShowTaskSelector(false); }} className={`w-full flex items-center gap-3 p-3 border rounded-xl transition-colors text-left ${!activeTask ? 'bg-slate-100 border-slate-300 dark:bg-slate-800 dark:border-slate-600' : 'bg-white border-slate-100 hover:bg-slate-50 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10'}`}>
+                <div className="w-2.5 h-2.5 rounded-full border border-slate-400" />
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{t("কাজ ছাড়াই ফোকাস", "Focus without a task")}</span>
+              </button>
+              {activeTasksList.length === 0 ? (
                 <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-4">{t("এখনো কোনো কাজ নেই।", "No tasks available.")}</p>
               ) : (
-                tasks.map(task => (
+                activeTasksList.map(task => (
                   <button key={task.id} onClick={() => { setActiveTask(task); setShowTaskSelector(false); }} className={`w-full flex items-center gap-3 p-3 border rounded-xl transition-colors text-left ${activeTask?.id === task.id ? 'bg-slate-100 border-slate-300 dark:bg-slate-800 dark:border-slate-600' : 'bg-white border-slate-100 hover:bg-slate-50 dark:bg-white/5 dark:border-white/5 dark:hover:bg-white/10'}`}>
                     <div className={`w-2.5 h-2.5 rounded-full ${task.completed ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-400'}`} />
                     <div className="flex-1 truncate"><h4 className={`text-sm font-medium ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>{task.title}</h4></div>
@@ -954,7 +1013,8 @@ export default function PomodoroPage() {
       {showStopModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm px-5">
           <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-xs rounded-3xl p-6 shadow-2xl animate-in zoom-in-95">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white text-center mb-6">{t("সেশন বন্ধ করবে?", "Stop Session?")}</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white text-center mb-6">{mode === 'pomodoro' ? t("ফোকাস সেশন বন্ধ করবে?", "Stop this focus session?") : t("বিরতি বন্ধ করবে?", "End this break?")}</h3>
+            {mode === 'pomodoro' && <p className="-mt-4 mb-6 text-center text-xs text-slate-500">{t("১ মিনিটের বেশি পড়ে থাকলে সেটুকু হিসাবে থাকবে।", "If you focused for over a minute, that time is still counted.")}</p>}
             <div className="flex items-center gap-3">
               <button onClick={() => setShowStopModal(false)} className="flex-1 py-3.5 rounded-xl text-slate-700 dark:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 font-medium">{t("না", "Cancel")}</button>
               <button onClick={confirmStopTimer} className="flex-1 py-3.5 rounded-xl font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20">{t("বন্ধ করো", "Stop")}</button>

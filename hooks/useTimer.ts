@@ -77,11 +77,14 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
 
   // সেটিংস বদলালে: টাইমার একদম শুরুর অবস্থায় থাকলেই নতুন সময় বসাই (চলমান বা থামানো টাইমারে হাত দিই না)
   const live = useRef({ isActive, timeLeft, initialDuration, mode });
+  const customized = useRef(false);   // হাতে সময় বদলালে অ্যাপে ফিরে আসার (focus) সময় সেটিংসের সময় বসাই না
   live.current = { isActive, timeLeft, initialDuration, mode };
   useEffect(() => {
-    const updateTimerFromSettings = () => {
+    const updateTimerFromSettings = (e: Event) => {
       const s = live.current;
       if (s.isActive || s.timeLeft !== s.initialDuration) return;
+      if (e.type === 'focus' && customized.current) return;
+      customized.current = false;
       const duration = getDurationForMode(s.mode);
       setInitialDuration(duration);
       setTimeLeft(duration);
@@ -127,23 +130,24 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   const resetTimer = () => {
     setEndAt(null);
     setRestored(false);
+    customized.current = false;
     const duration = getDurationForMode(mode);
     setInitialDuration(duration);
     setTimeLeft(duration);
   };
 
+  // শুরুর আগেই শুধু সময় বদলানো যায় (১ থেকে ১৮০ মিনিট); মোট সময়ও সাথে বদলায়, নইলে রিং আধা ভরা আর "থেমে আছে" দেখাত
   const adjustTime = (amountInSeconds: number) => {
-    if (endAt !== null) return;
-    setTimeLeft((prev) => {
-      let newTime = prev + amountInSeconds;
-      if (newTime < 60) newTime = 60;
-      setInitialDuration((prevInitial) => (prevInitial < newTime ? newTime : prevInitial));
-      return newTime;
-    });
+    if (endAt !== null || timeLeft !== initialDuration) return;
+    const next = Math.min(180 * 60, Math.max(60, timeLeft + amountInSeconds));
+    customized.current = true;
+    setTimeLeft(next);
+    setInitialDuration(next);
   };
 
   const changeMode = (newMode: TimerMode, autoStart: boolean = false) => {
     setMode(newMode);
+    customized.current = false;
     const duration = getDurationForMode(newMode);
     setInitialDuration(duration);
     setTimeLeft(duration);
