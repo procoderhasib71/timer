@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
-  Sun, Calendar, CalendarDays, CheckCircle2, 
+  Calendar, CalendarDays, CheckCircle2, ChevronRight, 
   Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send,
   
 } from "lucide-react";
@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
 import { useAccount } from "@/app/components/shared/AuthGate";
+import { useAccountSheet } from "@/app/components/account/AccountSheet";
 import { botReminder, botTimer } from "@/lib/admcqAccount";
 import { addMinutes, ensureEntry } from "@/lib/leaderboard";
 import { useLang } from "@/lib/i18n";
@@ -108,6 +109,7 @@ export default function PomodoroPage() {
   const [addCategory, setAddCategory] = useState("HSC");
   
   const router = useRouter();
+  const sheet = useAccountSheet();
 
   // সময় শেষ: শব্দ, কাঁপুনি আর নোটিফিকেশন (অ্যাপ পেছনে থাকলেও দেখা যায়)
   const handleTimerFinish = (finishedMode: TimerMode) => {
@@ -466,7 +468,6 @@ export default function PomodoroPage() {
 
   const currentDisplayedActiveTasks = activeList === "Today" ? todayTasks : (activeList === "This Week" ? thisWeekTasks : (activeList === "Planned" ? plannedTasks : activeTasksList));
   const todayEstimatedTime = todayTasks.reduce((acc, curr) => acc + ((curr.estimatedPomodoros || 1) * 25), 0);
-  const totalElapsedPomodoros = tasks.reduce((acc, curr) => acc + (curr.completedPomodoros || 0), 0);
 
   const isInitialState = timeLeft === initialDuration && !isActive;
   const isPausedState = !isActive && timeLeft < initialDuration;
@@ -497,68 +498,107 @@ export default function PomodoroPage() {
     </div>
   );
 
+  // হোম: বড় "পরের কাজ" কার্ড থেকে এক চাপে ফোকাস, আজকের হিসাব, আজকের কাজের ঝলক আর বাকি তালিকা
+  const todayStartMs = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+  const doneToday = completedTasksList.filter(t => t.completedAt && Date.parse(t.completedAt) >= todayStartMs).length;
+  const dayProgress = doneToday + todayTasks.length > 0 ? doneToday / (doneToday + todayTasks.length) : 0;
+  const nextTask = activeTask && !activeTask.completed ? activeTask : todayTasks[0] || activeTasksList[0] || null;
+  const timerRunning = isActive || isPausedState;
+  const todayDate = new Date().toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const startFocus = () => {
+    if (!timerRunning && nextTask) setActiveTask(nextTask);
+    setCurrentScreen('timer');
+  };
+
+  const listRow = (icon: React.ReactNode, tint: string, title: string, note: string, count: number, onClick: () => void) => (
+    <button onClick={onClick} className="w-full flex items-center gap-3.5 px-4 py-3.5 text-left hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors active:bg-slate-100 dark:active:bg-white/5">
+      <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${tint}`}>{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{title}</p>
+        <p className="text-[11px] text-slate-400 truncate">{note}</p>
+      </div>
+      <span className="text-sm font-extrabold text-slate-400 tabular-nums">{n(count)}</span>
+      <ChevronRight size={16} className="text-slate-300 dark:text-slate-600" />
+    </button>
+  );
+
   const renderHome = () => (
-    <div className="w-full pb-40 px-5 pt-6 transition-colors duration-300">
-      <div className="mb-8 mt-2">
-        <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">{greeting}{userName ? `, ${userName}` : ""}</h2>
-        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{t("পড়া শুরু করবে? 🔥", "Ready to focus? 🔥")}</h1>
+    <div className="w-full max-w-2xl mx-auto pb-44 px-5 pt-2 space-y-6 animate-in fade-in duration-300">
+      <div>
+        <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{todayDate}</p>
+        <h1 className="text-[26px] leading-tight font-extrabold text-slate-900 dark:text-white tracking-tight mt-0.5">
+          {greeting}{userName ? <>, <span className="text-indigo-600 dark:text-indigo-400">{userName}</span></> : ""}
+        </h1>
       </div>
-      <div className="grid grid-cols-4 gap-2 mb-8 bg-white dark:bg-slate-800/40 p-4 rounded-3xl border border-slate-200 dark:border-slate-700/50">
-        <div className="flex flex-col items-center text-center">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("আনুমানিক", "Estimated")}</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{dur(todayEstimatedTime)}</span>
-        </div>
-        <div className="flex flex-col items-center text-center border-l border-slate-200 dark:border-slate-700/50">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("বাকি", "To Do")}</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{n(todayTasks.length)}</span>
-        </div>
-        <div className="flex flex-col items-center text-center border-l border-slate-200 dark:border-slate-700/50">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("পড়েছি", "Elapsed")}</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{n(Math.floor((totalElapsedPomodoros*25)/60))}{t("ঘ", "h")}</span>
-        </div>
-        <div className="flex flex-col items-center text-center border-l border-slate-200 dark:border-slate-700/50">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">{t("শেষ", "Done")}</span>
-          <span className="text-lg font-bold text-slate-800 dark:text-white">{n(completedTasksList.length)}</span>
+
+      {/* পরের কাজ */}
+      <div className="relative overflow-hidden rounded-[28px] p-5 text-white bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 shadow-xl shadow-indigo-500/25">
+        <div className="absolute -top-16 -right-12 w-48 h-48 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-20 -left-10 w-44 h-44 rounded-full bg-violet-300/20 blur-2xl pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider bg-white/15 px-2.5 py-1 rounded-full">
+              {timerRunning ? (isActive ? t("ফোকাস চলছে", "Focusing now") : t("থেমে আছে", "Paused")) : t("পরের কাজ", "Up next")}
+            </span>
+            {nextTask && <span className="text-xs font-bold text-white/85">🍅 {n(nextTask.completedPomodoros || 0)}/{n(nextTask.estimatedPomodoros || 1)}</span>}
+          </div>
+          <h2 className="text-xl font-extrabold mt-3 leading-snug line-clamp-2">
+            {nextTask ? nextTask.title : t("আজ কী পড়বে? একটা কাজ যোগ করো", "What will you study? Add a task")}
+          </h2>
+          <p className="text-[13px] text-white/75 mt-1">
+            {nextTask ? `${nextTask.category} · ${dur((nextTask.estimatedPomodoros || 1) * 25)}` : t("অথবা কাজ ছাড়াই একটা ফোকাস সেশন চালাও", "Or just start a focus session")}
+          </p>
+          <div className="mt-5 flex items-center gap-3">
+            <button onClick={startFocus} className="flex items-center gap-2 bg-white text-indigo-700 font-extrabold text-sm pl-4 pr-5 py-3 rounded-2xl shadow-lg shadow-indigo-900/20 hover:bg-indigo-50 active:scale-95 transition-all">
+              <Play size={16} fill="currentColor" />
+              {timerRunning ? `${t("টাইমারে ফিরে যাও", "Back to timer")} · ${formatTime(timeLeft)}` : t("ফোকাস শুরু করো", "Start focus")}
+            </button>
+            {!timerRunning && <span className="text-xs font-semibold text-white/70">{n(Math.round(initialDuration / 60))} {t("মিনিট", "min")}</span>}
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => openTasks("Today")} className="col-span-2 rounded-3xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 p-5 text-left shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95">
-          <div className="flex justify-between items-center mb-6">
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl text-indigo-500 dark:text-indigo-400"><Sun size={24} /></div>
-            <span className="bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400">{t(`${n(todayTasks.length)}টা কাজ বাকি`, `${todayTasks.length} tasks left`)}</span>
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">{t("আজ", "Today")}</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">{t("আনুমানিক সময়", "Estimated time")}: {dur(todayEstimatedTime)}</p>
-          </div>
-        </button>
-        
-        <button onClick={() => openTasks("This Week")} className="col-span-1 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-5 text-left shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95 flex flex-col justify-between">
-          <div>
-            <Calendar size={22} className="text-blue-500 dark:text-blue-400 mb-4" />
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">{t("এই সপ্তাহ", "This Week")}</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs">{t(`${n(thisWeekTasks.length)}টা কাজ`, `${thisWeekTasks.length} tasks`)}</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/50 w-full">
-            <p className="text-[9px] font-bold text-blue-500/80 dark:text-blue-400/80 uppercase tracking-wider">{weekData.rangeStr}</p>
-          </div>
-        </button>
-        
-        <button onClick={() => openTasks("Planned")} className="col-span-1 bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-3xl p-5 text-left shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95 flex flex-col justify-between">
-          <div>
-            <CalendarDays size={22} className="text-teal-500 dark:text-teal-400 mb-4" />
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-1">{t("পরিকল্পিত", "Planned")}</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs">{t(`${n(plannedTasks.length)}টা কাজ`, `${plannedTasks.length} tasks`)}</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/50 w-full">
-            <p className="text-[9px] font-bold text-teal-500/80 dark:text-teal-400/80 uppercase tracking-wider">{t(`${weekData.endStr} এর পরে`, `After ${weekData.endStr}`)}</p>
-          </div>
-        </button>
-        
-        <button onClick={() => openTasks("Completed")} className="col-span-2 flex items-center justify-between bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 mt-2 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors active:scale-95">
-          <div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><CheckCircle2 size={20} /></div><span className="font-bold text-slate-700 dark:text-slate-200">{t("শেষ হয়েছে", "Completed")}</span></div>
-          <span className="text-lg font-extrabold text-slate-400 dark:text-slate-500">{n(completedTasksList.length)}</span>
-        </button>
+
+      {/* আজকের হিসাব */}
+      <div className="bg-white dark:bg-[#1e293b]/60 border border-slate-200/80 dark:border-white/5 rounded-3xl p-4 shadow-sm">
+        <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-white/5">
+          {[[t("বাকি কাজ", "To do"), n(todayTasks.length)], [t("আনুমানিক", "Estimated"), dur(todayEstimatedTime)], [t("আজ শেষ", "Done today"), n(doneToday)]].map(([label, value]) => (
+            <div key={label} className="text-center px-1">
+              <p className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">{value}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700" style={{ width: `${Math.round(dayProgress * 100)}%` }} />
+        </div>
+        <p className="text-[11px] text-slate-400 mt-2">{t(`আজকের কাজের ${n(Math.round(dayProgress * 100))}% শেষ`, `${Math.round(dayProgress * 100)}% of today's tasks done`)}</p>
+      </div>
+
+      {/* আজকের কাজ */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-extrabold text-slate-900 dark:text-white">{t("আজকের কাজ", "Today")}</h3>
+          {todayTasks.length > 0 && <button onClick={() => openTasks("Today")} className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-0.5">{t("সব দেখো", "See all")} <ChevronRight size={14} /></button>}
+        </div>
+        <div className="relative mb-3">
+          <Plus size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={quickNewTaskTitle} onChange={(e) => setQuickNewTaskTitle(e.target.value)} onKeyDown={handleQuickAddTask}
+            placeholder={t("নতুন কাজ লিখে Enter চাপো", "Type a task and press Enter")} enterKeyHint="done"
+            className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-white dark:bg-[#1e293b]/60 border border-slate-200/80 dark:border-white/5 text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-indigo-400 shadow-sm" />
+        </div>
+        <div className="space-y-2.5">
+          {todayTasks.length === 0
+            ? <p className="text-center text-sm text-slate-400 py-6">{t("আজকের জন্য কোনো কাজ নেই। উপরে লিখে যোগ করো।", "Nothing for today yet. Add one above.")}</p>
+            : todayTasks.slice(0, 3).map(renderTaskItem)}
+        </div>
+      </div>
+
+      {/* বাকি তালিকা */}
+      <div className="bg-white dark:bg-[#1e293b]/60 border border-slate-200/80 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-white/5">
+        {listRow(<Calendar size={18} />, "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400", t("এই সপ্তাহ", "This Week"), weekData.rangeStr, thisWeekTasks.length, () => openTasks("This Week"))}
+        {listRow(<CalendarDays size={18} />, "bg-teal-50 text-teal-500 dark:bg-teal-500/10 dark:text-teal-400", t("পরিকল্পিত", "Planned"), t(`${weekData.endStr} এর পরে`, `After ${weekData.endStr}`), plannedTasks.length, () => openTasks("Planned"))}
+        {listRow(<CheckCircle2 size={18} />, "bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-400", t("শেষ হয়েছে", "Completed"), t("যা শেষ করেছ", "Everything you finished"), completedTasksList.length, () => openTasks("Completed"))}
       </div>
     </div>
   );
@@ -843,7 +883,7 @@ export default function PomodoroPage() {
                           <p className="text-[11px] text-slate-400">{editingTask.dueDate === "Tomorrow" ? t("আগামীকাল এই সময়ে মাছরাঙা বট Telegram এ মনে করাবে।", "Machranga bot will message you on Telegram at this time tomorrow.") : t("এই সময়ে মাছরাঙা বট Telegram এ মনে করাবে।", "Machranga bot will message you on Telegram at this time.")}</p>
                         </>
                       ) : (
-                        <button onClick={() => router.push('/profile')} className="w-full text-left p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-semibold">
+                        <button onClick={() => { setEditingTask(null); sheet.open('profile'); }} className="w-full text-left p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-semibold">
                           <Send size={14} className="inline mr-1.5 -mt-0.5" /> {t("রিমাইন্ডার আসে Telegram এ। আগে প্রোফাইলে মাছরাঙা বট যুক্ত করো →", "Reminders come on Telegram. Link the Machranga bot in your Profile first →")}
                         </button>
                       )}
@@ -932,7 +972,7 @@ export default function PomodoroPage() {
       {currentScreen === 'tasks' && renderTasksList()}
       {currentScreen === 'timer' && renderTimerScreen()}
 
-      {!editingTask && !isAddingTask && currentScreen !== 'timer' && !showTaskSelector && !showStopModal && (
+      {!editingTask && !isAddingTask && currentScreen === 'tasks' && !showTaskSelector && !showStopModal && (
         <div className="fixed bottom-[calc(7.2rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-40 pointer-events-none">
           <div className="relative pointer-events-auto group">
             {isActive && (

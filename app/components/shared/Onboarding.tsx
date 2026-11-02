@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useAccountSheet } from "@/app/components/account/AccountSheet";
 import { Coffee, Send, Timer, Trophy } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 
@@ -13,7 +14,7 @@ const HIDDEN_ON = ["/login", "/profile"];
 export default function Onboarding() {
   const { lang, setLang, t, n } = useLang();
   const pathname = usePathname();
-  const router = useRouter();
+  const sheet = useAccountSheet();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -26,7 +27,7 @@ export default function Onboarding() {
   const finish = (goProfile = false) => {
     try { localStorage.setItem(KEY, "1"); } catch { /* প্রাইভেট মোড */ }
     setOpen(false);
-    if (goProfile) router.push("/profile");
+    if (goProfile) sheet.open("profile");
   };
 
   const slides = [

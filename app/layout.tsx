@@ -8,6 +8,7 @@ import TopHeader from "./components/shared/TopHeader";
 import BottomNav from "./components/shared/BottomNav";
 import InstallPrompt from "./components/pwa/InstallPrompt";
 import Onboarding from "./components/shared/Onboarding";
+import { AccountSheetProvider } from "./components/account/AccountSheet";
 import { LangProvider } from "@/lib/i18n";
 
 // ইংরেজি Inter, বাংলা Hind Siliguri (Inter এ বাংলা অক্ষর নেই, তাই পরেরটায় যায়)
@@ -55,6 +56,7 @@ export default function RootLayout({
           <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
             
             <AuthGate>
+            <AccountSheetProvider>
             <TopHeader />
             
             <main className="flex-1">
@@ -64,6 +66,7 @@ export default function RootLayout({
             <Onboarding />
             <InstallPrompt />
             <BottomNav />
+            </AccountSheetProvider>
             </AuthGate>
             
           </div>

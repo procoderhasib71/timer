@@ -5,17 +5,19 @@ import { Timer, BarChart2, Trophy, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLang } from "@/lib/i18n";
+import { useAccountSheet } from "@/app/components/account/AccountSheet";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { t } = useLang();
+  const sheet = useAccountSheet();
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
   const navItems = [
     { icon: Timer, label: t("ফোকাস", "Focus"), href: "/" },
     { icon: BarChart2, label: t("হিসাব", "Stats"), href: "/analytics" },
     { icon: Trophy, label: t("র‍্যাঙ্ক", "Rank"), href: "/leaderboard" },
-    { icon: User, label: t("প্রোফাইল", "Profile"), href: "/profile" },
+    { icon: User, label: t("প্রোফাইল", "Profile"), href: "/profile", sheet: true },
   ];
 
   return (
@@ -33,9 +35,11 @@ export default function BottomNav() {
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
+            // প্রোফাইল আলাদা পাতা নয়, শিট খোলে
             <Link 
               key={item.href} 
               href={item.href} 
+              onClick={item.sheet ? (e) => { e.preventDefault(); sheet.open("profile"); } : undefined}
               className="flex flex-col items-center gap-1 p-1 min-w-[4rem] transition-all active:scale-95"
             >
               <div className={`transition-colors duration-300 ${
