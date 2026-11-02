@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// machranga-eae85 Firestore: Money Manager + Pomodoro (AdMCQ এর ডাটা Turso তে, এখানে নয়)
+// একই ফাইল money-manager-app/firestore.rules এও আছে; বদলালে দুই জায়গাতেই বদলাও।
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // প্রত্যেকে শুধু নিজের ডাটা: প্রোফাইল, লেনদেন, বাজেট, টাস্ক, সেশন, সেটিংস
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // স্টাডি গ্রুপের চ্যাট: লগইন করা সবাই পড়বে; নিজের নামে নতুন মেসেজ দিতে পারবে, বদলানো/মোছা যাবে না
+    match /groups/{groupId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000;
+    }
+
+    // বাকি সব বন্ধ
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
