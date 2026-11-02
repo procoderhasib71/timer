@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import AuthGate from "./components/shared/AuthGate";
 import { ThemeProvider } from "./components/shared/ThemeProvider";
 import TopHeader from "./components/shared/TopHeader";
 import BottomNav from "./components/shared/BottomNav";
@@ -47,6 +48,7 @@ export default function RootLayout({
           
           <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
             
+            <AuthGate>
             <TopHeader />
             
             <main className="flex-1">
@@ -55,6 +57,7 @@ export default function RootLayout({
             
             <InstallPrompt />
             <BottomNav />
+            </AuthGate>
             
           </div>
         </ThemeProvider>

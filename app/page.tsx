@@ -9,10 +9,13 @@ import {
   Users, Settings
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
-import { useTimer } from "@/hooks/useTimer";
+import { useTimer, TimerMode } from "@/hooks/useTimer";
+import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
+import { useAccount } from "@/app/components/shared/AuthGate";
+import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
   id: string;
@@ -55,12 +58,77 @@ export default function PomodoroPage() {
   const [addPriority, setAddPriority] = useState(0); 
   const [addCategory, setAddCategory] = useState("HSC");
   
+  const router = useRouter();
+
+  // সময় শেষ: শব্দ, কাঁপুনি আর নোটিফিকেশন (অ্যাপ পেছনে থাকলেও দেখা যায়)
+  const handleTimerFinish = (finishedMode: TimerMode) => {
+    const settings = JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
+    playRingtone(settings.ringtone || "Default");
+    vibrate();
+    if (finishedMode === 'pomodoro') notify("Focus session complete 🍅", "Great work! Time for a break.");
+    else notify("Break is over ⏰", "Ready for the next focus session?");
+  };
+
   // Timer Hook
-  const { mode, timeLeft, isActive, toggleTimer, resetTimer, adjustTime, initialDuration, changeMode, getSettings } = useTimer("pomodoro");
-  const [activeCategory, setActiveCategory] = useState("HSC"); 
+  const { mode, timeLeft, isActive, toggleTimer, resetTimer, adjustTime, initialDuration, changeMode, getSettings, restored } = useTimer("pomodoro", handleTimerFinish);
+  const [activeCategory, setActiveCategory] = useState("HSC");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const { account } = useAccount();
+  const userName = (account?.name || auth.currentUser?.displayName || "").split(" ")[0];
+  const [greeting, setGreeting] = useState("Hello");
+
+  // সময় অনুযায়ী শুভেচ্ছা (সার্ভারে নয়, ব্রাউজারের ঘড়িতে)
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h >= 5 && h < 12 ? "Good Morning" : h >= 12 && h < 17 ? "Good Afternoon" : h >= 17 && h < 21 ? "Good Evening" : "Good Night");
+  }, []);
+
+  // আগের চলমান/থামানো টাইমার ফিরে এলে সরাসরি টাইমারের পর্দায়
+  useEffect(() => {
+    if (restored) setCurrentScreen('timer');
+  }, [restored]);
+
+  // কোন টাস্কে কাজ চলছিল মনে রাখি, রিফ্রেশের পরে সেটাই আবার
+  useEffect(() => {
+    if (activeTask) localStorage.setItem('pomodoro_active_task', activeTask.id);
+  }, [activeTask]);
+
+  // ব্রাউজারের ট্যাবে বাকি সময়
+  useEffect(() => {
+    const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+    const title = !isActive && timeLeft === initialDuration ? "Pomodoro Focus BD"
+      : `${isActive ? "" : "⏸ "}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} · ${mode === 'pomodoro' ? "Focus" : "Break"}`;
+    document.title = title;
+    // পেজ লোডের পরে Next নিজের title বসায়; থামানো টাইমারে তাই একটু পরে আবার
+    const id = setTimeout(() => { document.title = title; }, 500);
+    return () => clearTimeout(id);
+  }, [timeLeft, isActive, initialDuration, mode]);
+
+  // সেটিংসে চালু থাকলে টাইমার চলার সময় স্ক্রিন বন্ধ হবে না
+  useEffect(() => {
+    if (!isActive || !getSettings().keepScreenOn || !('wakeLock' in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const acquire = () => {
+      if (document.visibilityState === 'visible') navigator.wakeLock.request('screen').then((l) => { lock = l; }).catch(() => undefined);
+    };
+    acquire();
+    document.addEventListener('visibilitychange', acquire);
+    return () => {
+      document.removeEventListener('visibilitychange', acquire);
+      lock?.release().catch(() => undefined);
+    };
+  }, [isActive, getSettings]);
+
+  // Start চাপলে: শব্দ চালুর অনুমতি (ব্রাউজারের নিয়ম) আর প্রথমবার নোটিফিকেশনের অনুমতি
+  const startOrPause = () => {
+    if (!isActive) {
+      unlockAudio();
+      askNotifyPermission();
+    }
+    toggleTimer();
+  };
 
   const sessionState = useRef({ timeLeft, isActive, activeTask, mode, activeCategory, initialDuration });
   const wasActiveRef = useRef(false);
@@ -92,31 +160,31 @@ export default function PomodoroPage() {
 
   const weekData = getWeekRange();
 
+  // লগইন না থাকলে /login এ। একবারই শুনি; ইউজার বদলালে আগের টাস্কের listener বন্ধ করে নতুনটা
   useEffect(() => {
+    let stopTasks: (() => void) | null = null;
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUserId(user.uid);
-        const docRef = doc(db, 'users', user.uid, 'taskData', 'allTasks');
-        
-        const unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const fetchedTasks: Task[] = data.tasks || [];
-            setTasks(fetchedTasks);
-            if (fetchedTasks.length > 0 && !activeTask) {
-              setActiveTask(fetchedTasks[0]);
-            }
-          } else {
-            setTasks([]);
-          }
-        });
-        return () => unsubscribeSnapshot();
-      } else {
-        setUserId(null); setTasks([]); 
+      stopTasks?.();
+      stopTasks = null;
+      if (!user) {
+        setUserId(null); setTasks([]);
+        router.replace('/login');
+        return;
       }
+      setUserId(user.uid);
+
+      stopTasks = onSnapshot(doc(db, 'users', user.uid, 'taskData', 'allTasks'), (docSnap) => {
+        const fetchedTasks: Task[] = docSnap.exists() ? (docSnap.data().tasks || []) : [];
+        setTasks(fetchedTasks);
+        // চলতি টাস্কের নতুন তথ্য; না থাকলে আগে যেটায় কাজ চলছিল, নইলে প্রথম অসম্পূর্ণ টাস্ক
+        setActiveTask((prev) => {
+          const wanted = prev?.id || localStorage.getItem('pomodoro_active_task');
+          return fetchedTasks.find((t) => t.id === wanted) || prev || fetchedTasks.find((t) => !t.completed) || null;
+        });
+      });
     });
-    return () => unsubscribeAuth();
-  }, [activeTask]);
+    return () => { stopTasks?.(); unsubscribeAuth(); };
+  }, [router]);
 
   const syncTasksToDB = async (updatedTasks: Task[], uid: string) => {
     try {
@@ -163,7 +231,10 @@ export default function PomodoroPage() {
       saveFocusSession(0, true).then(() => {
         const settings = getSettings();
         
-        if (mode === 'pomodoro') {
+        if (mode === 'pomodoro' && settings.disableBreak) {
+          // বিরতি বন্ধ: সরাসরি পরের পোমোডোরো
+          changeMode('pomodoro', settings.autoStartNext ?? false);
+        } else if (mode === 'pomodoro') {
           const currentCount = (activeTask?.completedPomodoros || 0) + 1;
           const longBreakInterval = settings.longBreakInterval || 4;
           const nextMode = (currentCount % longBreakInterval === 0) ? 'longBreak' : 'shortBreak';
@@ -357,7 +428,7 @@ export default function PomodoroPage() {
   const renderHome = () => (
     <div className="w-full pb-40 px-5 pt-6 transition-colors duration-300">
       <div className="mb-8 mt-2">
-        <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">Good Morning, Asif</h2>
+        <h2 className="text-sm font-bold tracking-wider text-indigo-500 dark:text-indigo-400 uppercase mb-1">{greeting}{userName ? `, ${userName}` : ""}</h2>
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Ready to focus? 🔥</h1>
       </div>
       <div className="grid grid-cols-4 gap-2 mb-8 bg-white dark:bg-slate-800/40 p-4 rounded-3xl border border-slate-200 dark:border-slate-700/50">
@@ -532,11 +603,11 @@ export default function PomodoroPage() {
       </div>
       
       <div className="mt-auto mb-10 pb-[env(safe-area-inset-bottom)] z-20 w-full px-10 flex justify-center items-center gap-4 h-[60px] relative">
-        {isInitialState && <button onClick={toggleTimer} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">Start to Focus</button>}
-        {isActive && <button onClick={toggleTimer} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">Pause</button>}
+        {isInitialState && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">Start to Focus</button>}
+        {isActive && <button onClick={startOrPause} className="absolute px-10 py-3.5 rounded-full flex items-center justify-center font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">Pause</button>}
         {isPausedState && (
           <div className="absolute flex items-center gap-4">
-            <button onClick={toggleTimer} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">Continue</button>
+            <button onClick={startOrPause} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-slate-900 text-white dark:bg-white/90 dark:text-slate-900 hover:scale-95 transition-all">Continue</button>
             <button onClick={() => setShowStopModal(true)} className="px-8 py-3.5 rounded-full font-medium text-[15px] border bg-white dark:bg-transparent text-slate-700 dark:text-white border-slate-300 dark:border-white/40 hover:scale-95 transition-all">Stop</button>
           </div>
         )}

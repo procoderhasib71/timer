@@ -1,11 +1,28 @@
 // src/hooks/useTimer.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type TimerMode = 'pomodoro' | 'shortBreak' | 'longBreak';
 
-export function useTimer(initialMode: TimerMode = 'pomodoro') {
+// টাইমার "কখন শেষ হবে" (endAt) মনে রাখে, প্রতি সেকেন্ডে ১ কমায় না। তাই ফোন লক হলে বা অন্য ট্যাবে গেলে পিছিয়ে পড়ে না,
+// আর localStorage এ রাখা থাকে বলে পেজ রিফ্রেশ বা অ্যাপ বন্ধ করে খুললেও চলমান/থামানো টাইমার ফিরে আসে।
+const STORAGE_KEY = 'pomodoro_timer';
+type Saved = { mode: TimerMode; endAt: number | null; timeLeft: number; initialDuration: number };
+
+const secondsUntil = (endAt: number) => Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+
+export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: TimerMode) => void) {
   const [mode, setMode] = useState<TimerMode>(initialMode);
-  
+  const [initialDuration, setInitialDuration] = useState(25 * 60);
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [endAt, setEndAt] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);   // আগের চলমান/থামানো টাইমার ফিরে এসেছে কিনা
+  const hydrated = useRef(false);
+  const [ready, setReady] = useState(false);   // ফিরিয়ে আনা শেষ; তার আগে সেভ করলে পুরনোটা মুছে যেত
+  const finishedFor = useRef<number | null>(null);   // একই endAt এর জন্য "শেষ" একবারই
+  const finishRef = useRef(onFinish);
+  finishRef.current = onFinish;
+  const isActive = endAt !== null;
+
   const getSettings = useCallback(() => {
     if (typeof window === 'undefined') return {};
     return JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
@@ -19,64 +36,96 @@ export function useTimer(initialMode: TimerMode = 'pomodoro') {
     return 25 * 60;
   }, [getSettings]);
 
-  // Initial States
-  const [initialDuration, setInitialDuration] = useState(25 * 60);
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isActive, setIsActive] = useState(false);
+  // প্রথমবার: আগের টাইমার ফিরিয়ে আনি, না থাকলে সেটিংসের সময়
+  useEffect(() => {
+    if (hydrated.current) return;
+    hydrated.current = true;
+    let saved: Saved | null = null;
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { saved = null; }
+    if (saved && (saved.endAt || saved.timeLeft < saved.initialDuration)) {
+      setMode(saved.mode);
+      setInitialDuration(saved.initialDuration);
+      // বন্ধ থাকার মধ্যে শেষ হয়ে গেলেও endAt রাখি: পরের tick এ 0 হয়ে স্বাভাবিকভাবে "শেষ" ধরা হবে (সেশন সেভ হবে)
+      setTimeLeft(saved.endAt ? secondsUntil(saved.endAt) : saved.timeLeft);
+      setEndAt(saved.endAt);
+      setRestored(true);
+    } else {
+      const d = getDurationForMode(initialMode);
+      setInitialDuration(d);
+      setTimeLeft(d);
+    }
+    setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ✅ Listen for Settings Updates & SSR Hydration Fix
+  useEffect(() => {
+    if (!ready) return;
+    const saved: Saved = { mode, endAt, timeLeft, initialDuration };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  }, [ready, mode, endAt, timeLeft, initialDuration]);
+
+  // সেটিংস বদলালে: টাইমার একদম শুরুর অবস্থায় থাকলেই নতুন সময় বসাই (চলমান বা থামানো টাইমারে হাত দিই না)
+  const live = useRef({ isActive, timeLeft, initialDuration, mode });
+  live.current = { isActive, timeLeft, initialDuration, mode };
   useEffect(() => {
     const updateTimerFromSettings = () => {
-      if (!isActive) {
-        const duration = getDurationForMode(mode);
-        setInitialDuration(duration);
-        setTimeLeft(duration);
-      }
+      const s = live.current;
+      if (s.isActive || s.timeLeft !== s.initialDuration) return;
+      const duration = getDurationForMode(s.mode);
+      setInitialDuration(duration);
+      setTimeLeft(duration);
     };
-
-    // Run on mount
-    updateTimerFromSettings();
-
-    // Listen for custom event from Settings page & Tab Focus
     window.addEventListener('settings_updated', updateTimerFromSettings);
     window.addEventListener('focus', updateTimerFromSettings);
-
     return () => {
       window.removeEventListener('settings_updated', updateTimerFromSettings);
       window.removeEventListener('focus', updateTimerFromSettings);
     };
-  }, [mode, getDurationForMode, isActive]);
+  }, [getDurationForMode]);
 
-  // Main timer countdown
+  // চলার সময় ঘড়ি দেখে বাকি সময় হিসাব; ট্যাবে ফিরে এলেও সাথে সাথে ঠিক হয়
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((time) => time - 1);
-      }, 1000);
-    } else if (isActive && timeLeft <= 0) {
-      setIsActive(false); 
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
+    if (endAt === null) return;
+    const tick = () => {
+      const left = secondsUntil(endAt);
+      setTimeLeft(left);
+      if (left === 0 && finishedFor.current !== endAt) {
+        finishedFor.current = endAt;
+        setEndAt(null);
+        finishRef.current?.(live.current.mode);
+      }
     };
-  }, [isActive, timeLeft]);
+    tick();
+    const interval = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [endAt]);
 
-  const toggleTimer = () => setIsActive(!isActive);
-  
+  const toggleTimer = () => {
+    if (endAt !== null) {
+      setTimeLeft(secondsUntil(endAt));
+      setEndAt(null);
+    } else if (timeLeft > 0) {
+      setEndAt(Date.now() + timeLeft * 1000);
+    }
+  };
+
   const resetTimer = () => {
-    setIsActive(false);
+    setEndAt(null);
+    setRestored(false);
     const duration = getDurationForMode(mode);
     setInitialDuration(duration);
     setTimeLeft(duration);
   };
 
   const adjustTime = (amountInSeconds: number) => {
+    if (endAt !== null) return;
     setTimeLeft((prev) => {
       let newTime = prev + amountInSeconds;
-      if (newTime < 60) newTime = 60; 
+      if (newTime < 60) newTime = 60;
       setInitialDuration((prevInitial) => (prevInitial < newTime ? newTime : prevInitial));
       return newTime;
     });
@@ -87,11 +136,11 @@ export function useTimer(initialMode: TimerMode = 'pomodoro') {
     const duration = getDurationForMode(newMode);
     setInitialDuration(duration);
     setTimeLeft(duration);
-    setIsActive(autoStart);
+    setEndAt(autoStart ? Date.now() + duration * 1000 : null);
   };
 
-  return { 
-    mode, timeLeft, isActive, toggleTimer, resetTimer, 
-    adjustTime, initialDuration, changeMode, getSettings 
+  return {
+    mode, timeLeft, isActive, toggleTimer, resetTimer,
+    adjustTime, initialDuration, changeMode, getSettings, restored
   };
 }

@@ -1,0 +1,52 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { onAuthStateChanged } from 'firebase/auth';
+import { Loader2 } from 'lucide-react';
+// @ts-ignore: Bypassing implicit any error for production build
+import { auth } from '@/lib/firebaseClient';
+import { Account, fetchAccount } from '@/lib/admcqAccount';
+
+// পুরো অ্যাপের পাহারা: লগইন নেই → /login; প্রোফাইল অসম্পূর্ণ (নাম, ছেলে/মেয়ে, পড়ার ধরন, স্কুল/কলেজ) → /profile; নইলে অ্যাপ।
+// যাচাই শেষ না হওয়া পর্যন্ত শুধু spinner, তাই ভুল পেজ এক ঝলকও দেখা যায় না।
+// AdMCQ এ পৌঁছানো না গেলে আটকাই না (টাইমার চলুক)।
+
+type Ctx = { account: Account | null; setAccount: (a: Account) => void };
+const AccountContext = createContext<Ctx>({ account: null, setAccount: () => undefined });
+export const useAccount = () => useContext(AccountContext);
+
+export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [account, setAccount] = useState<Account | null>(null);
+  const [state, setState] = useState<'checking' | 'out' | 'needProfile' | 'ok'>('checking');
+
+  useEffect(() => onAuthStateChanged(auth, async (user) => {
+    if (!user) return setState('out');
+    try {
+      const r = await fetchAccount(auth);
+      setAccount(r.account);
+      setState(r.complete.full ? 'ok' : 'needProfile');
+    } catch {
+      setState('ok');
+    }
+  }), []);
+
+  // অবস্থা অনুযায়ী ঠিক পেজে পাঠাই। /login নিজেই সামলায় (রেজিস্ট্রেশনের মাঝে OTP তে লগইন হয়ে যায়, তখন সরানো যাবে না)
+  const target = state === 'out' ? '/login' : state === 'needProfile' ? '/profile' : null;
+  const wrongPage = state !== 'checking' && pathname !== '/login' && target !== null && pathname !== target;
+  useEffect(() => {
+    if (!wrongPage) return;
+    window.location.replace(target || '/');
+  }, [wrongPage, target]);
+
+  const value = { account, setAccount: (a: Account) => { setAccount(a); setState('ok'); } };
+  if (state === 'checking' || wrongPage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-indigo-500" size={32} />
+      </div>
+    );
+  }
+  return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
+}

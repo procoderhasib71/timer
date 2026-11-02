@@ -13,6 +13,7 @@ import { useTheme } from "next-themes";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { playRingtone } from "@/lib/alarm";
 
 interface ListItemProps {
   icon: React.ElementType;
@@ -37,6 +38,7 @@ export default function SettingsPage() {
   const [autoStartNext, setAutoStartNext] = useState(false);
   const [autoStartBreak, setAutoStartBreak] = useState(true);
   const [disableBreak, setDisableBreak] = useState(false);
+  const [keepScreenOn, setKeepScreenOn] = useState(false);
 
   const [pomodoroLength, setPomodoroLength] = useState(25);
   const [shortBreak, setShortBreak] = useState(5);
@@ -67,6 +69,7 @@ export default function SettingsPage() {
           if (fbSettings.autoStartNext !== undefined) setAutoStartNext(fbSettings.autoStartNext);
           if (fbSettings.autoStartBreak !== undefined) setAutoStartBreak(fbSettings.autoStartBreak);
           if (fbSettings.disableBreak !== undefined) setDisableBreak(fbSettings.disableBreak);
+          if (fbSettings.keepScreenOn !== undefined) setKeepScreenOn(fbSettings.keepScreenOn);
 
           if (fbSettings.pomodoroLength !== undefined) setPomodoroLength(fbSettings.pomodoroLength);
           if (fbSettings.shortBreak !== undefined) setShortBreak(fbSettings.shortBreak);
@@ -81,6 +84,7 @@ export default function SettingsPage() {
           if (localSettings.autoStartNext !== undefined) setAutoStartNext(localSettings.autoStartNext);
           if (localSettings.autoStartBreak !== undefined) setAutoStartBreak(localSettings.autoStartBreak);
           if (localSettings.disableBreak !== undefined) setDisableBreak(localSettings.disableBreak);
+          if (localSettings.keepScreenOn !== undefined) setKeepScreenOn(localSettings.keepScreenOn);
 
           if (localSettings.pomodoroLength !== undefined) setPomodoroLength(localSettings.pomodoroLength);
           if (localSettings.shortBreak !== undefined) setShortBreak(localSettings.shortBreak);
@@ -135,7 +139,13 @@ export default function SettingsPage() {
     updateSetting("disableBreak", !disableBreak);
   };
 
+  const handleToggleKeepScreenOn = () => {
+    setKeepScreenOn(!keepScreenOn);
+    updateSetting("keepScreenOn", !keepScreenOn);
+  };
+
   const handleSaveTimerConfig = (key: string, value: any) => {
+    if (key === 'ringtone') playRingtone(value);   // বাছাইয়ের সময় শুনিয়ে দিই
     if (key === 'pomodoroLength') setPomodoroLength(value);
     if (key === 'shortBreak') setShortBreak(value);
     if (key === 'longBreak') setLongBreak(value);
@@ -276,7 +286,7 @@ export default function SettingsPage() {
               value={mounted ? theme : "system"} 
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")} 
             />
-            <ListItem icon={AppWindow} title="App Badge" />
+            <ListItem icon={AppWindow} title="Keep Screen On" isToggle toggleState={keepScreenOn} onToggle={handleToggleKeepScreenOn} />
             <ListItem icon={UserCircle} title="Account Settings" href="/profile" />
           </div>
         </div>
