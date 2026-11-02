@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Calendar, CalendarDays, CheckCircle2, ChevronRight, 
-  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2,
+  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2,
   
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
@@ -455,16 +455,60 @@ export default function PomodoroPage() {
     botReminder(auth, { ref: t.id, title: t.title, time: off ? null : t.reminder!, day: t.dueDate === "Tomorrow" ? "tomorrow" : "today", repeat: repeatKey(t.repeat) });
   };
 
-  const handleUpdateTaskDetails = async (taskId: string, updates: Partial<Task>) => {
+  // lazy: নাম আর নোট টাইপের সময় প্রতি অক্ষরে নয়, থামার একটু পরে ডাটাবেসে (আর নাম বদলালে বটের রিমাইন্ডারেও)
+  const lazySync = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleUpdateTaskDetails = async (taskId: string, updates: Partial<Task>, lazy = false) => {
     if (!userId) return;
     const before = tasks.find(t => t.id === taskId);
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
     setTasks(updatedTasks);
     const after = updatedTasks.find(t => t.id === taskId);
-    if (after && ['reminder', 'repeat', 'completed', 'dueDate'].some(k => k in updates) && (isClock(after.reminder) || isClock(before?.reminder))) syncReminder(after);
     if (editingTask && editingTask.id === taskId) setEditingTask(prev => prev ? { ...prev, ...updates } : null);
     if (activeTask && activeTask.id === taskId) setActiveTask(prev => prev ? { ...prev, ...updates } : null);
+    if (lazySync.current) clearTimeout(lazySync.current);
+    lazySync.current = null;
+    if (lazy) {
+      lazySync.current = setTimeout(() => {
+        lazySync.current = null;
+        syncTasksToDB(updatedTasks, userId);
+        if (after && 'title' in updates && isClock(after.reminder) && after.title.trim()) syncReminder(after);
+      }, 800);
+      return;
+    }
+    if (after && ['reminder', 'repeat', 'completed', 'dueDate'].some(k => k in updates) && (isClock(after.reminder) || isClock(before?.reminder))) syncReminder(after);
     syncTasksToDB(updatedTasks, userId);
+  };
+
+  // টাস্কের শিট বন্ধ: বাকি থাকা লেখা এখনই রাখি; নাম খালি রাখলে আগের নাম ফেরত
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const openTitle = useRef("");
+  useEffect(() => { setConfirmDelete(false); openTitle.current = editingTask?.title || ""; }, [editingTask?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeTaskEditor = () => {
+    const et = editingTask;
+    if (et && !et.title.trim()) {
+      handleUpdateTaskDetails(et.id, { title: openTitle.current.trim() || t("নাম ছাড়া কাজ", "Untitled task") });
+    } else if (lazySync.current && userId) {
+      clearTimeout(lazySync.current);
+      lazySync.current = null;
+      syncTasksToDB(tasks, userId);
+      if (et && isClock(et.reminder)) syncReminder(et);
+    }
+    setEditingTask(null);
+    setEditModalField('none');
+  };
+
+  // কাজ মুছে ফেলা: বটের রিমাইন্ডারও বাতিল, টাইমারে এটা বাছাই থাকলে সরাই
+  const deleteTask = (task: Task) => {
+    if (!userId) return;
+    if (lazySync.current) clearTimeout(lazySync.current);
+    lazySync.current = null;
+    const updatedTasks = tasks.filter(x => x.id !== task.id);
+    setTasks(updatedTasks);
+    syncTasksToDB(updatedTasks, userId);
+    if (isClock(task.reminder)) syncReminder({ ...task, reminder: null });
+    if (activeTask?.id === task.id) setActiveTask(null);
+    setEditingTask(null);
+    setEditModalField('none');
   };
 
   const toggleTaskComplete = async (task: Task, e: React.MouseEvent) => {
@@ -931,128 +975,181 @@ export default function PomodoroPage() {
         </div>
       )}
 
-      {editingTask && (
-        <div className="fixed inset-0 z-[200] flex flex-col justify-end bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="fixed inset-0" onClick={() => setEditingTask(null)} />
-          <div className="bg-white dark:bg-[#1c1c1e] w-full h-[88vh] rounded-t-[2rem] p-6 shadow-2xl flex flex-col animate-in slide-in-from-bottom-full duration-300 relative z-10">
-            <div className="flex justify-between items-start mb-6 shrink-0">
-              <div className="flex items-center gap-3 w-full">
-                <button onClick={(e) => toggleTaskComplete(editingTask, e)} className={editingTask.completed ? 'text-emerald-500' : 'text-slate-400'}>
-                  {editingTask.completed ? <CheckCircle2 size={24} /> : <Circle size={24} strokeWidth={1.5} />}
-                </button>
-                <input type="text" value={editingTask.title} onChange={(e) => handleUpdateTaskDetails(editingTask.id, { title: e.target.value })} className={`text-xl font-bold bg-transparent outline-none w-full ${editingTask.completed ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`} />
+      {editingTask && (() => {
+        const et = editingTask;
+        const focusLen = getSettings().pomodoroLength || 25;
+        const est = et.estimatedPomodoros || 1;
+        const done = et.completedPomodoros || 0;
+        const row = (field: typeof editModalField, icon: React.ReactNode, tint: string, title: string, hint: string, value: string, on: boolean) => (
+          <button onClick={() => setEditModalField(prev => prev === field ? 'none' : field)} className="w-full flex items-center gap-3.5 p-4 text-left hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors">
+            <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${tint}`}>{icon}</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{title}</p>
+              <p className="text-[11px] text-slate-400 truncate">{hint}</p>
+            </div>
+            <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg ${on ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300' : 'text-slate-400'}`}>{value}</span>
+            <ChevronDown size={16} className={`shrink-0 text-slate-300 dark:text-slate-600 transition-transform ${editModalField === field ? 'rotate-180' : ''}`} />
+          </button>
+        );
+        const chip = (on: boolean) => `shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${on ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-500/30' : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10'}`;
+        return (
+        <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200 md:p-6">
+          <div className="fixed inset-0" onClick={closeTaskEditor} />
+          <div className="relative z-10 w-full md:max-w-lg h-[90dvh] md:h-auto md:max-h-[88vh] flex flex-col bg-white dark:bg-[#161b26] rounded-t-[28px] md:rounded-[28px] shadow-2xl border-t md:border border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom md:zoom-in-95 duration-300 pb-[env(safe-area-inset-bottom)]">
+            <div className="md:hidden mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-white/15" />
+
+            {/* নাম আর শেষ করার টিক */}
+            <div className="flex items-start gap-3 px-5 pt-4 pb-3">
+              <button onClick={(e) => toggleTaskComplete(et, e)} aria-label={et.completed ? t("আবার চালু করো", "Mark as not done") : t("শেষ হয়েছে", "Mark as done")}
+                className={`mt-1 shrink-0 transition-colors ${et.completed ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600 hover:text-emerald-500'}`}>
+                {et.completed ? <CheckCircle2 size={26} /> : <Circle size={26} strokeWidth={1.5} />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <input type="text" value={et.title} maxLength={200} placeholder={t("কী পড়বে?", "What will you study?")}
+                  onChange={(e) => handleUpdateTaskDetails(et.id, { title: e.target.value }, true)}
+                  className={`w-full text-xl font-extrabold bg-transparent outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 ${et.completed ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`} />
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {et.completed && et.completedAt ? t(`✅ শেষ করেছ ${formatCompletedDate(et.completedAt)}`, `✅ Done ${formatCompletedDate(et.completedAt)}`) : t("নামে চাপ দিয়ে বদলানো যায়", "Tap the name to edit it")}
+                </p>
               </div>
-              <button onClick={() => { setEditingTask(null); setEditModalField('none'); }} className="p-2 bg-slate-100 dark:bg-[#2c2c2e] rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#3a3a3c] transition-colors"><X size={20}/></button>
+              <button onClick={closeTaskEditor} aria-label={t("বন্ধ করো", "Close")} className="shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/15 transition-colors"><X size={18} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-10 scrollbar-hide">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 dark:bg-[#2c2c2e] rounded-xl flex flex-col items-center justify-center p-4 border border-slate-100 dark:border-white/5">
-                  <span className="text-2xl mb-1">🍅</span>
-                  <span className="text-sm font-bold text-slate-800 dark:text-white">{n(editingTask.completedPomodoros || 0)} / {n(editingTask.estimatedPomodoros || 1)}</span>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">{t("পোমোডোরো", "Pomodoros")}</span>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4 space-y-4 scrollbar-hide">
+              {/* কয়টা পোমোডোরো */}
+              <div className="rounded-2xl p-4 bg-gradient-to-br from-rose-50 to-orange-50 dark:from-rose-500/10 dark:to-orange-500/5 border border-rose-100 dark:border-rose-500/15">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500/80">{t("ফোকাস সেশন", "Focus sessions")}</p>
+                    <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">🍅 {n(done)}<span className="text-slate-400 font-bold text-lg"> / {n(est)}</span></p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{t(`আনুমানিক ${dur(est * focusLen)} · প্রতিটা ${n(focusLen)} মিনিট`, `About ${dur(est * focusLen)} · ${focusLen} min each`)}</p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-white dark:bg-black/20 rounded-xl p-1 border border-rose-100 dark:border-white/10">
+                    <button onClick={() => handleUpdateTaskDetails(et.id, { estimatedPomodoros: Math.max(1, est - 1) })} disabled={est <= 1} aria-label={t("কমাও", "Fewer")} className="w-9 h-9 rounded-lg text-lg font-bold text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-white/10 disabled:opacity-30">−</button>
+                    <span className="w-7 text-center font-extrabold text-slate-900 dark:text-white tabular-nums">{n(est)}</span>
+                    <button onClick={() => handleUpdateTaskDetails(et.id, { estimatedPomodoros: Math.min(20, est + 1) })} disabled={est >= 20} aria-label={t("বাড়াও", "More")} className="w-9 h-9 rounded-lg text-lg font-bold text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-white/10 disabled:opacity-30">+</button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-3 justify-center">
-                  <button onClick={() => setEditModalField(prev => prev === 'category' ? 'none' : 'category')} className="w-full flex items-center justify-center gap-2 bg-indigo-50 dark:bg-[#28283a] text-indigo-600 dark:text-indigo-400 p-3.5 rounded-xl text-sm font-semibold border border-indigo-100 dark:border-indigo-500/20 transition-transform active:scale-95">
-                    <Tag size={16}/> {editingTask.category || t("ট্যাগ দাও", "Add Tags")}
-                  </button>
-                  <button onClick={() => setEditModalField(prev => prev === 'priority' ? 'none' : 'priority')} className={`w-full flex items-center justify-center gap-2 bg-slate-50 dark:bg-[#2c2c2e] p-3.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-white/5 transition-transform active:scale-95 ${editingTask.priority ? getPriorityColor(editingTask.priority) : "text-slate-500 dark:text-slate-300"}`}>
-                    <Flag size={16}/> {getPriorityLabel(editingTask.priority)}
-                  </button>
+                <div className="mt-3 h-1.5 rounded-full bg-rose-100 dark:bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-orange-400 transition-all duration-500" style={{ width: `${Math.min(100, Math.round((done / est) * 100))}%` }} />
                 </div>
               </div>
 
+              {/* বিষয় আর কতটা জরুরি */}
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setEditModalField(prev => prev === 'category' ? 'none' : 'category')} className={`text-left p-3.5 rounded-2xl border transition-colors ${editModalField === 'category' ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}>
+                  <p className="text-[11px] font-bold text-slate-400 flex items-center gap-1"><Tag size={12} /> {t("বিষয়", "Subject")}</p>
+                  <p className="text-sm font-extrabold text-indigo-600 dark:text-indigo-300 mt-1 truncate">{et.category || t("বাছাই করো", "Choose")}</p>
+                </button>
+                <button onClick={() => setEditModalField(prev => prev === 'priority' ? 'none' : 'priority')} className={`text-left p-3.5 rounded-2xl border transition-colors ${editModalField === 'priority' ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.03]'}`}>
+                  <p className="text-[11px] font-bold text-slate-400 flex items-center gap-1"><Flag size={12} /> {t("কতটা জরুরি", "How urgent")}</p>
+                  <p className={`text-sm font-extrabold mt-1 truncate ${et.priority ? getPriorityColor(et.priority) : 'text-slate-500 dark:text-slate-300'}`}>{et.priority ? getPriorityLabel(et.priority) : t("ঠিক করা নেই", "Not set")}</p>
+                </button>
+              </div>
               {editModalField === 'category' && (
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 animate-in fade-in slide-in-from-top-2">
+                <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-2">
                   {CATEGORIES.map(cat => (
-                    <button key={cat} onClick={() => { handleUpdateTaskDetails(editingTask.id, { category: cat }); setEditModalField('none'); }} className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${editingTask.category === cat ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#2c2c2e] text-slate-600 dark:text-slate-300'}`}>{cat}</button>
+                    <button key={cat} onClick={() => { handleUpdateTaskDetails(et.id, { category: cat }); setEditModalField('none'); }} className={chip(et.category === cat)}>{cat}</button>
+                  ))}
+                </div>
+              )}
+              {editModalField === 'priority' && (
+                <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-2">
+                  {([[3, t("🔴 খুব জরুরি", "🔴 High")], [2, t("🟠 মাঝারি", "🟠 Medium")], [1, t("🔵 পরে করলেও চলে", "🔵 Low")], [0, t("নেই", "None")]] as const).map(([lvl, label]) => (
+                    <button key={lvl} onClick={() => { handleUpdateTaskDetails(et.id, { priority: lvl }); setEditModalField('none'); }} className={chip((et.priority || 0) === lvl)}>{label}</button>
                   ))}
                 </div>
               )}
 
-              {editModalField === 'priority' && (
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 animate-in fade-in slide-in-from-top-2">
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 3 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-500/10 text-red-500">{t("বেশি", "High")}</button>
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 2 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-orange-50 dark:bg-orange-500/10 text-orange-500">{t("মাঝারি", "Medium")}</button>
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 1 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-500">{t("কম", "Low")}</button>
-                  <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { priority: 0 }); setEditModalField('none'); }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#2c2c2e] text-slate-400">{t("নেই", "None")}</button>
-                </div>
-              )}
-
-              <div className="bg-white dark:bg-[#2c2c2e] border border-slate-200 dark:border-white/5 rounded-xl flex flex-col divide-y divide-slate-100 dark:divide-white/5">
-                <div className="flex flex-col">
-                  <div onClick={() => setEditModalField(prev => prev === 'dueDate' ? 'none' : 'dueDate')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><CalendarDays size={18}/> <span className="text-sm font-medium">{t("কবে", "Due Date")}</span></div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-md ${editingTask.dueDate && editingTask.dueDate !== "None" ? 'bg-indigo-100 dark:bg-[#3a3a3c] text-indigo-600 dark:text-blue-400' : 'text-slate-500 bg-slate-100 dark:bg-transparent'}`}>{listLabel(editingTask.dueDate || "Today")}</span>
-                  </div>
+              {/* কবে, মনে করানো, বারবার */}
+              <div className="rounded-2xl border border-slate-200 dark:border-white/10 overflow-hidden divide-y divide-slate-100 dark:divide-white/5">
+                <div>
+                  {row('dueDate', <CalendarDays size={18} />, "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400",
+                    t("কবে করবে", "When"), t("আজ, কাল, এই সপ্তাহ বা পরে", "Today, tomorrow, this week or later"),
+                    listLabel(et.dueDate || "Today"), Boolean(et.dueDate && et.dueDate !== "None"))}
                   {editModalField === 'dueDate' && (
-                    <div className="px-4 pb-4 flex gap-2 overflow-x-auto scrollbar-hide animate-in fade-in slide-in-from-top-2">
+                    <div className="px-4 pb-4 flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-2">
                       {["Today", "Tomorrow", "This Week", "Planned", "None"].map(opt => (
-                        <button key={opt} onClick={() => { handleUpdateTaskDetails(editingTask.id, { dueDate: opt === "None" ? null : opt, list: opt === "None" ? "Today" : opt }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${editingTask.dueDate === opt || (!editingTask.dueDate && opt === "Today") ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{listLabel(opt)}</button>
+                        <button key={opt} onClick={() => { handleUpdateTaskDetails(et.id, { dueDate: opt === "None" ? null : opt, list: opt === "None" || opt === "Tomorrow" ? (opt === "Tomorrow" ? "Planned" : "Today") : opt }); setEditModalField('none'); }}
+                          className={chip(et.dueDate === opt || (!et.dueDate && opt === "Today"))}>{listLabel(opt)}</button>
                       ))}
                     </div>
                   )}
                 </div>
-                
-                <div className="flex flex-col">
-                  <div onClick={() => setEditModalField(prev => prev === 'reminder' ? 'none' : 'reminder')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Bell size={18}/> <span className="text-sm font-medium">{t("রিমাইন্ডার", "Reminder")}</span></div>
-                    <span className="text-xs font-medium text-slate-400">{isClock(editingTask.reminder) ? n(formatClock(editingTask.reminder)) : t("নেই", "None")}</span>
-                  </div>
+
+                <div>
+                  {row('reminder', <Bell size={18} />, "bg-amber-50 text-amber-500 dark:bg-amber-500/10 dark:text-amber-400",
+                    t("মনে করিয়ে দাও", "Remind me"), botLinked ? t("ঠিক সময়ে Telegram এ মাছরাঙা বট জানাবে", "The Machranga bot pings you on Telegram") : t("আগে মাছরাঙা বট যুক্ত করতে হবে", "Link the Machranga bot first"),
+                    isClock(et.reminder) ? n(formatClock(et.reminder)) : t("বন্ধ", "Off"), isClock(et.reminder))}
                   {editModalField === 'reminder' && (
                     <div className="px-4 pb-4 space-y-3 animate-in fade-in slide-in-from-top-2">
                       {botLinked ? (
                         <>
                           <div className="flex gap-2 items-center">
-                            <input type="time" defaultValue={isClock(editingTask.reminder) ? editingTask.reminder : ""}
-                              onChange={(e) => { if (isClock(e.target.value)) handleUpdateTaskDetails(editingTask.id, { reminder: e.target.value }); }}
-                              className="flex-1 bg-slate-100 dark:bg-[#3a3a3c] text-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm font-bold outline-none" />
-                            {isClock(editingTask.reminder) && (
-                              <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { reminder: null }); setEditModalField('none'); }} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#3a3a3c] text-slate-500">{t("মুছে দাও", "Remove")}</button>
+                            <input type="time" defaultValue={isClock(et.reminder) ? et.reminder : ""}
+                              onChange={(e) => { if (isClock(e.target.value)) handleUpdateTaskDetails(et.id, { reminder: e.target.value }); }}
+                              className="flex-1 bg-slate-100 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-400/50" />
+                            {isClock(et.reminder) && (
+                              <button onClick={() => { handleUpdateTaskDetails(et.id, { reminder: null }); setEditModalField('none'); }} className="px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-white/5 text-slate-500">{t("বন্ধ করো", "Turn off")}</button>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400">{editingTask.dueDate === "Tomorrow" ? t("আগামীকাল এই সময়ে মাছরাঙা বট Telegram এ মনে করাবে।", "Machranga bot will message you on Telegram at this time tomorrow.") : t("এই সময়ে মাছরাঙা বট Telegram এ মনে করাবে।", "Machranga bot will message you on Telegram at this time.")}</p>
+                          <p className="text-[11px] text-slate-400">{et.dueDate === "Tomorrow" ? t("কাল এই সময়ে Telegram এ মেসেজ যাবে, অ্যাপ বন্ধ থাকলেও।", "You'll get a Telegram message at this time tomorrow, even if the app is closed.") : t("এই সময়ে Telegram এ মেসেজ যাবে, অ্যাপ বন্ধ থাকলেও।", "You'll get a Telegram message at this time, even if the app is closed.")}</p>
                         </>
                       ) : (
-                        <button onClick={() => { setEditingTask(null); sheet.open('profile'); }} className="w-full text-left p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-semibold">
-                          <Send size={14} className="inline mr-1.5 -mt-0.5" /> {t("রিমাইন্ডার আসে Telegram এ। আগে প্রোফাইলে মাছরাঙা বট যুক্ত করো →", "Reminders come on Telegram. Link the Machranga bot in your Profile first →")}
+                        <button onClick={() => { closeTaskEditor(); sheet.open('profile'); }} className="w-full text-left p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-semibold">
+                          <Send size={14} className="inline mr-1.5 -mt-0.5" /> {t("এক চাপে বট যুক্ত করো, তারপর রিমাইন্ডার Telegram এ আসবে →", "Link the bot in one tap, then reminders arrive on Telegram →")}
                         </button>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-col">
-                  <div onClick={() => setEditModalField(prev => prev === 'repeat' ? 'none' : 'repeat')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Repeat size={18}/> <span className="text-sm font-medium">{t("বারবার", "Repeat")}</span></div>
-                    <span className="text-xs font-medium text-slate-400">{repeatText(editingTask.repeat)}</span>
-                  </div>
+                <div>
+                  {row('repeat', <Repeat size={18} />, "bg-violet-50 text-violet-500 dark:bg-violet-500/10 dark:text-violet-400",
+                    t("বারবার আসবে", "Repeat"), t("রোজের পড়া একবার লিখলেই চলবে", "Write a daily routine once"),
+                    repeatText(et.repeat), Boolean(repeatKey(et.repeat)))}
                   {editModalField === 'repeat' && (
                     <div className="px-4 pb-4 space-y-2 animate-in fade-in slide-in-from-top-2">
-                      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                      <div className="flex flex-wrap gap-2">
                         {REPEATS.map(([key]) => (
-                          <button key={key} onClick={() => { handleUpdateTaskDetails(editingTask.id, { repeat: key || null }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${repeatKey(editingTask.repeat) === key ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{repeatText(key)}</button>
+                          <button key={key} onClick={() => { handleUpdateTaskDetails(et.id, { repeat: key || null }); setEditModalField('none'); }} className={chip(repeatKey(et.repeat) === key)}>{repeatText(key)}</button>
                         ))}
                       </div>
-                      <p className="text-[11px] text-slate-400">{t("শেষ করা কাজ নিয়মের পরের দিনে আবার ফিরে আসবে।", "A finished repeating task comes back on its next day.")}</p>
+                      <p className="text-[11px] text-slate-400">{t("শেষ করলে নিয়মের পরের দিনে কাজটা নিজেই আবার ফিরে আসবে।", "Once done, it comes back by itself on its next day.")}</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">{t("নোট", "Notes")}</h4>
-                <textarea 
-                  placeholder={t("নোট লেখো...", "Add a note...")} 
-                  value={editingTask.notes || ""}
-                  onChange={(e) => handleUpdateTaskDetails(editingTask.id, { notes: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-[#2c2c2e] border border-slate-200 dark:border-white/5 rounded-xl p-4 text-sm outline-none resize-none h-32 text-slate-800 dark:text-white placeholder-slate-500 transition-colors"
-                />
+              {/* নোট */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 ml-1">{t("নোট", "Notes")}</p>
+                <textarea value={et.notes || ""} maxLength={2000}
+                  placeholder={t("কোন অধ্যায়, কোন পৃষ্ঠা, কী মনে রাখতে হবে...", "Chapter, pages, anything to remember...")}
+                  onChange={(e) => handleUpdateTaskDetails(et.id, { notes: e.target.value }, true)}
+                  className="w-full h-28 resize-none rounded-2xl p-4 text-sm bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-indigo-300 dark:focus:border-indigo-500/40 transition-colors" />
               </div>
+            </div>
+
+            {/* নিচে: মুছে ফেলা আর এই কাজে ফোকাস */}
+            <div className="shrink-0 flex items-center gap-3 px-5 py-4 border-t border-slate-100 dark:border-white/5">
+              <button onClick={() => (confirmDelete ? deleteTask(et) : setConfirmDelete(true))}
+                className={`shrink-0 h-12 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm transition-all ${confirmDelete ? 'px-4 bg-red-500 text-white' : 'w-12 bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20'}`}
+                aria-label={t("কাজটা মুছে ফেলো", "Delete task")}>
+                <Trash2 size={18} />{confirmDelete && t("আবার চাপো, মুছে যাবে", "Tap again to delete")}
+              </button>
+              {!confirmDelete && (et.completed ? (
+                <button onClick={(e) => toggleTaskComplete(et, e)} className="flex-1 h-12 rounded-2xl font-bold text-sm bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-white/15 transition-colors">{t("আবার চালু করো", "Reopen task")}</button>
+              ) : (
+                <button onClick={() => { setActiveTask(et); closeTaskEditor(); setCurrentScreen('timer'); }} className="flex-1 h-12 rounded-2xl flex items-center justify-center gap-2 font-extrabold text-sm text-white bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25 active:scale-[0.98] transition-transform">
+                  <Play size={16} fill="currentColor" /> {t("এই কাজে ফোকাস শুরু করো", "Start focusing on this")}
+                </button>
+              ))}
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showTaskSelector && (
         <div className="fixed inset-0 z-[150] flex items-start justify-center pt-[calc(6rem+env(safe-area-inset-top))] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 px-5">
