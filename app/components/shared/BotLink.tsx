@@ -2,12 +2,12 @@
 import { useState } from 'react';
 import { CheckCircle2, Loader2, Send } from 'lucide-react';
 import type { Auth } from 'firebase/auth';
-import { botLinkUrl } from '@/lib/admcqAccount';
+import { botLinkUrl, type BotApp } from '@/lib/admcqAccount';
 
-// মাছরাঙা বটের সাথে যুক্ত করা। একই অ্যাকাউন্ট তিন অ্যাপে, তাই AdMCQ/Pomodoro/Money যেকোনো একটা থেকে করলেই হয়।
+// এই অ্যাপকে মাছরাঙা বটের সাথে যুক্ত করা। প্রতিটা অ্যাপ আলাদা করে যুক্ত হয়, বট অ্যাপ অনুযায়ী উত্তর দেয়।
 // লিংক আনতে সার্ভারে যেতে হয়, আর অপেক্ষার পরে নতুন ট্যাব খুললে ফোনের ব্রাউজার আটকায়, তাই দুই চাপ: কোড আনো → বট খোলো।
 // এই ফাইল money-manager-app/app/components/BotLink.tsx এও হুবহু আছে (শুধু import আলাদা); বদলালে দুই জায়গাতেই বদলাও।
-export default function BotLink({ auth, linked, text }: { auth: Auth; linked: boolean; text: string }) {
+export default function BotLink({ auth, app, linked, text }: { auth: Auth; app: BotApp; linked: boolean; text: string }) {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -16,7 +16,7 @@ export default function BotLink({ auth, linked, text }: { auth: Auth; linked: bo
     setBusy(true);
     setError('');
     try {
-      setUrl(await botLinkUrl(auth));
+      setUrl(await botLinkUrl(auth, app));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create a link.');
     }

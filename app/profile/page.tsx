@@ -106,7 +106,7 @@ export default function ProfilePage() {
 
       {!firstTime && (
         <div className={`${box} mt-6`}>
-          <BotLink auth={auth} linked={botLinked} text="Get a Telegram message when your timer ends, even if this app is closed. Same account as AdMCQ." />
+          <BotLink auth={auth} app="pomodoro" linked={botLinked} text="Get a Telegram message when your timer ends, even if this app is closed." />
         </div>
       )}
     </div>

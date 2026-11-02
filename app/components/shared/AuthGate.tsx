@@ -27,7 +27,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       const r = await fetchAccount(auth);
       setAccount(r.account);
-      setBotLinked(r.botLinked);
+      setBotLinked(Boolean(r.botLinks.pomodoro));
       setState(r.complete.full ? 'ok' : 'needProfile');
     } catch {
       setState('ok');
