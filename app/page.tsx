@@ -15,7 +15,8 @@ import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
 import { useAccount } from "@/app/components/shared/AuthGate";
-import { botTimer } from "@/lib/admcqAccount";
+import { botReminder, botTimer } from "@/lib/admcqAccount";
+import { addMinutes, ensureEntry } from "@/lib/leaderboard";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
@@ -37,6 +38,35 @@ interface Task {
 }
 
 const CATEGORIES = ["HSC", "Admission", "Medical", "Varsity", "MBBS"];
+
+const formatClock = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+};
+const isClock = (v?: string | null): v is string => Boolean(v && /^\d\d:\d\d$/.test(v));
+
+// টাস্ক বারবার: শেষ করা টাস্ক নিয়মের দিনে আবার ফিরে আসে, আর রিমাইন্ডারও সেই নিয়মে বাজে (বটের মাধ্যমে)
+const REPEATS: [string, string][] = [["", "None"], ["daily", "Daily"], ["satthu", "Sat–Thu"], ["weekly", "Weekly"]];
+const LEGACY_REPEAT: Record<string, string> = { Daily: "daily", Weekly: "weekly", Weekdays: "satthu" };
+const repeatKey = (v?: string | null) => (v ? LEGACY_REPEAT[v] ?? (REPEATS.some(([k]) => k === v) ? v : "") : "");
+const repeatLabel = (v?: string | null) => REPEATS.find(([k]) => k === repeatKey(v))?.[1] || "None";
+
+/** নিয়মের আজকের দিনে, আগে শেষ করা বারবারের টাস্ক আবার অসম্পূর্ণ করি */
+function renewRepeats(list: Task[]): Task[] | null {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  let changed = false;
+  const out = list.map((t) => {
+    const key = repeatKey(t.repeat);
+    if (!key || !t.completed || !t.completedAt || Date.parse(t.completedAt) >= todayStart) return t;
+    const due = key === "daily" || (key === "satthu" && now.getDay() !== 5)
+      || (key === "weekly" && new Date(t.createdAt || t.completedAt).getDay() === now.getDay());
+    if (!due) return t;
+    changed = true;
+    return { ...t, completed: false, completedAt: null, completedPomodoros: 0 };
+  });
+  return changed ? out : null;
+}
 
 export default function PomodoroPage() {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'tasks' | 'timer'>('home');
@@ -88,6 +118,11 @@ export default function PomodoroPage() {
     setGreeting(h >= 5 && h < 12 ? "Good Morning" : h >= 12 && h < 17 ? "Good Afternoon" : h >= 17 && h < 21 ? "Good Evening" : "Good Night");
   }, []);
 
+  // লিডারবোর্ডে নিজের ঘর না থাকলে আগের সেশন থেকে বানাই (প্রথমবার একবারই)
+  useEffect(() => {
+    if (userId) ensureEntry(userId, account?.name || auth.currentUser?.displayName || "").catch(() => undefined);
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // আগের চলমান/থামানো টাইমার ফিরে এলে সরাসরি টাইমারের পর্দায়
   useEffect(() => {
     if (restored) setCurrentScreen('timer');
@@ -101,7 +136,7 @@ export default function PomodoroPage() {
   // ব্রাউজারের ট্যাবে বাকি সময়
   useEffect(() => {
     const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-    const title = !isActive && timeLeft === initialDuration ? "Pomodoro Focus BD"
+    const title = !isActive && timeLeft === initialDuration ? "Pomodoro BD"
       : `${isActive ? "" : "⏸ "}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} · ${mode === 'pomodoro' ? "Focus" : "Break"}`;
     document.title = title;
     // পেজ লোডের পরে Next নিজের title বসায়; থামানো টাইমারে তাই একটু পরে আবার
@@ -177,7 +212,9 @@ export default function PomodoroPage() {
       setUserId(user.uid);
 
       stopTasks = onSnapshot(doc(db, 'users', user.uid, 'taskData', 'allTasks'), (docSnap) => {
-        const fetchedTasks: Task[] = docSnap.exists() ? (docSnap.data().tasks || []) : [];
+        let fetchedTasks: Task[] = docSnap.exists() ? (docSnap.data().tasks || []) : [];
+        const renewed = renewRepeats(fetchedTasks);
+        if (renewed) { fetchedTasks = renewed; syncTasksToDB(renewed, user.uid); }
         setTasks(fetchedTasks);
         // চলতি টাস্কের নতুন তথ্য; না থাকলে আগে যেটায় কাজ চলছিল, নইলে প্রথম অসম্পূর্ণ টাস্ক
         setActiveTask((prev) => {
@@ -212,6 +249,7 @@ export default function PomodoroPage() {
           duration: Math.round(timeSpentInSeconds / 60),
           mode: mode, completed: isCompleted, timestamp: new Date().toISOString()
         });
+        if (mode === 'pomodoro') addMinutes(userId, account?.name || auth.currentUser?.displayName || "", timeSpentInSeconds / 60).catch(() => undefined);
 
         if (isCompleted && activeTask && mode === 'pomodoro') {
           const newCompletedCount = (activeTask.completedPomodoros || 0) + 1;
@@ -313,10 +351,20 @@ export default function PomodoroPage() {
     }
   };
 
+  // টাস্কের রিমাইন্ডার বটে: সময় থাকলে বসাই; শেষ করা (বারবারের নয়) টাস্ক বা সময় মুছলে বাতিল
+  const syncReminder = (t: Task) => {
+    if (!botLinked) return;
+    const off = !isClock(t.reminder) || (t.completed && !repeatKey(t.repeat));
+    botReminder(auth, { ref: t.id, title: t.title, time: off ? null : t.reminder!, day: t.dueDate === "Tomorrow" ? "tomorrow" : "today", repeat: repeatKey(t.repeat) });
+  };
+
   const handleUpdateTaskDetails = async (taskId: string, updates: Partial<Task>) => {
     if (!userId) return;
+    const before = tasks.find(t => t.id === taskId);
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
     setTasks(updatedTasks);
+    const after = updatedTasks.find(t => t.id === taskId);
+    if (after && ['reminder', 'repeat', 'completed', 'dueDate'].some(k => k in updates) && (isClock(after.reminder) || isClock(before?.reminder))) syncReminder(after);
     if (editingTask && editingTask.id === taskId) setEditingTask(prev => prev ? { ...prev, ...updates } : null);
     if (activeTask && activeTask.id === taskId) setActiveTask(prev => prev ? { ...prev, ...updates } : null);
     syncTasksToDB(updatedTasks, userId);
@@ -757,13 +805,27 @@ export default function PomodoroPage() {
                 <div className="flex flex-col">
                   <div onClick={() => setEditModalField(prev => prev === 'reminder' ? 'none' : 'reminder')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                     <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Bell size={18}/> <span className="text-sm font-medium">Reminder</span></div>
-                    <span className="text-xs font-medium text-slate-400">{editingTask.reminder || "None"}</span>
+                    <span className="text-xs font-medium text-slate-400">{isClock(editingTask.reminder) ? formatClock(editingTask.reminder) : "None"}</span>
                   </div>
                   {editModalField === 'reminder' && (
-                    <div className="px-4 pb-4 flex gap-2 overflow-x-auto scrollbar-hide animate-in fade-in slide-in-from-top-2">
-                      {["None", "5 mins before", "10 mins before", "30 mins before"].map(opt => (
-                        <button key={opt} onClick={() => { handleUpdateTaskDetails(editingTask.id, { reminder: opt === "None" ? null : opt }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${editingTask.reminder === opt || (!editingTask.reminder && opt === "None") ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{opt}</button>
-                      ))}
+                    <div className="px-4 pb-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                      {botLinked ? (
+                        <>
+                          <div className="flex gap-2 items-center">
+                            <input type="time" defaultValue={isClock(editingTask.reminder) ? editingTask.reminder : ""}
+                              onChange={(e) => { if (isClock(e.target.value)) handleUpdateTaskDetails(editingTask.id, { reminder: e.target.value }); }}
+                              className="flex-1 bg-slate-100 dark:bg-[#3a3a3c] text-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm font-bold outline-none" />
+                            {isClock(editingTask.reminder) && (
+                              <button onClick={() => { handleUpdateTaskDetails(editingTask.id, { reminder: null }); setEditModalField('none'); }} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#3a3a3c] text-slate-500">Remove</button>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400">Machranga bot will message you on Telegram at this time{editingTask.dueDate === "Tomorrow" ? " tomorrow" : ""}.</p>
+                        </>
+                      ) : (
+                        <button onClick={() => router.push('/profile')} className="w-full text-left p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 text-xs font-semibold">
+                          <Send size={14} className="inline mr-1.5 -mt-0.5" /> Reminders come on Telegram. Link the Machranga bot in your Profile first →
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -771,13 +833,16 @@ export default function PomodoroPage() {
                 <div className="flex flex-col">
                   <div onClick={() => setEditModalField(prev => prev === 'repeat' ? 'none' : 'repeat')} className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                     <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300"><Repeat size={18}/> <span className="text-sm font-medium">Repeat</span></div>
-                    <span className="text-xs font-medium text-slate-400">{editingTask.repeat || "None"}</span>
+                    <span className="text-xs font-medium text-slate-400">{repeatLabel(editingTask.repeat)}</span>
                   </div>
                   {editModalField === 'repeat' && (
-                    <div className="px-4 pb-4 flex gap-2 overflow-x-auto scrollbar-hide animate-in fade-in slide-in-from-top-2">
-                      {["None", "Daily", "Weekly", "Monthly", "Weekdays"].map(opt => (
-                        <button key={opt} onClick={() => { handleUpdateTaskDetails(editingTask.id, { repeat: opt === "None" ? null : opt }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${editingTask.repeat === opt || (!editingTask.repeat && opt === "None") ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{opt}</button>
-                      ))}
+                    <div className="px-4 pb-4 space-y-2 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                        {REPEATS.map(([key, label]) => (
+                          <button key={key} onClick={() => { handleUpdateTaskDetails(editingTask.id, { repeat: key || null }); setEditModalField('none'); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${repeatKey(editingTask.repeat) === key ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300'}`}>{label}</button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-400">A finished repeating task comes back on its next day.</p>
                     </div>
                   )}
                 </div>

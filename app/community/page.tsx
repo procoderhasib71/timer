@@ -2,10 +2,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Send, Users, MessageSquare, Search, Hash, MoreVertical, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Send, Users, MessageSquare, Hash } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
+import { useAccount } from "@/app/components/shared/AuthGate";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit } from "firebase/firestore";
 
 interface Message {
@@ -21,17 +22,17 @@ interface Group {
   id: string;
   name: string;
   description: string;
-  members: number;
 }
 
 const STUDY_GROUPS: Group[] = [
-  { id: "hsc_warriors", name: "HSC 25/26 Warriors", description: "Discussion for HSC board exams and subjects.", members: 1240 },
-  { id: "medical_admission", name: "Medical Aspirants", description: "Preparation and tips for Medical Admission.", members: 3450 },
-  { id: "varsity_admission", name: "Varsity Unit-A", description: "Engineering and Varsity preparation.", members: 2100 },
-  { id: "mbbs_grinders", name: "MBBS Professional", description: "For medical students to discuss anatomy, pathology etc.", members: 890 }
+  { id: "hsc_warriors", name: "HSC 25/26 Warriors", description: "Discussion for HSC board exams and subjects." },
+  { id: "medical_admission", name: "Medical Aspirants", description: "Preparation and tips for Medical Admission." },
+  { id: "varsity_admission", name: "Varsity Unit-A", description: "Engineering and Varsity preparation." },
+  { id: "mbbs_grinders", name: "MBBS Professional", description: "For medical students to discuss anatomy, pathology etc." }
 ];
 
 export default function CommunityPage() {
+  const { account } = useAccount();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,15 +52,15 @@ export default function CommunityPage() {
     if (!activeGroup || !currentUser) return;
 
     const messagesRef = collection(db, 'groups', activeGroup.id, 'messages');
-    // Fetch last 50 messages to save read operations
-    const q = query(messagesRef, orderBy('createdAt', 'asc'), limit(50));
+    // শেষের ৫০টা মেসেজ (নতুন থেকে আনি, দেখাই পুরনো থেকে)
+    const q = query(messagesRef, orderBy('createdAt', 'desc'), limit(50));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMessages: Message[] = [];
       snapshot.forEach((doc) => {
         fetchedMessages.push({ id: doc.id, ...doc.data() } as Message);
       });
-      setMessages(fetchedMessages);
+      setMessages(fetchedMessages.reverse());
     });
 
     return () => unsubscribe();
@@ -82,7 +83,7 @@ export default function CommunityPage() {
       await addDoc(collection(db, 'groups', activeGroup.id, 'messages'), {
         text: messageText,
         uid: currentUser.uid,
-        displayName: currentUser.displayName || "Anonymous Student",
+        displayName: account?.name || currentUser.displayName || "A student",
         photoURL: currentUser.photoURL || null,
         createdAt: serverTimestamp(),
       });
@@ -111,9 +112,6 @@ export default function CommunityPage() {
               <p className="text-xs font-medium text-slate-500">Join Study Groups</p>
             </div>
           </div>
-          <button className="p-2 text-slate-500 bg-slate-200/50 dark:bg-[#1c1c1e] rounded-full hover:text-slate-900 dark:hover:text-white transition-colors">
-            <Search size={20} />
-          </button>
         </div>
 
         <div className="px-5 py-4 space-y-4">
@@ -142,12 +140,9 @@ export default function CommunityPage() {
                   <div className="flex-1">
                     <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">{group.name}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{group.description}</p>
-                    <div className="flex items-center gap-1 mt-3 text-[10px] font-bold text-slate-400">
-                      <Users size={12}/> {group.members.toLocaleString()} Active Members
-                    </div>
                   </div>
                   <div className="bg-slate-100 dark:bg-[#2c2c2e] text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0">
-                    Join
+                    Open
                   </div>
                 </div>
               </div>
@@ -174,15 +169,10 @@ export default function CommunityPage() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{activeGroup.name}</h1>
-              <p className="text-[10px] font-medium text-emerald-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {activeGroup.members} online
-              </p>
+              <p className="text-[10px] font-medium text-slate-500 line-clamp-1">{activeGroup.description}</p>
             </div>
           </div>
         </div>
-        <button className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
-          <MoreVertical size={20} />
-        </button>
       </div>
 
       {/* Chat Messages Area */}
@@ -258,9 +248,6 @@ export default function CommunityPage() {
           </div>
         ) : (
           <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            <button type="button" className="p-3 text-slate-400 hover:text-indigo-500 transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-[#2c2c2e] shrink-0">
-              <ImageIcon size={20} />
-            </button>
             <div className="flex-1 bg-slate-100 dark:bg-[#2c2c2e] rounded-full flex items-center px-4 py-1.5 border border-transparent focus-within:border-indigo-500/50 focus-within:bg-white dark:focus-within:bg-[#1c1c1e] transition-all">
               <input
                 type="text"

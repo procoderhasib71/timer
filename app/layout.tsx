@@ -23,13 +23,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Pomodoro Focus BD",
-  description: "Advanced study timer for students",
+  title: "Pomodoro BD",
+  description: "Focus timer and study planner for students in Bangladesh",
+  applicationName: "Pomodoro BD",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Focus BD",
+    title: "Pomodoro BD",
   },
 };
 

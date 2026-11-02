@@ -23,6 +23,26 @@ service cloud.firestore {
         && request.resource.data.text.size() <= 1000;
     }
 
+    // Pomodoro লিডারবোর্ড (board = সপ্তাহের শনিবারের তারিখ বা "all"): লগইন করা সবাই পড়বে, প্রত্যেকে শুধু নিজের ঘরে লিখবে।
+    // প্রথমবার আগের সেশন গুনে ঘর বানায়; পরে একবারে ৩ ঘণ্টার বেশি বাড়ানো বা কমানো যায় না। মোছা যায় না।
+    match /leaderboards/{board}/users/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid && validEntry()
+        && (!('minutes' in request.resource.data) || request.resource.data.minutes <= 100000);
+      allow update: if request.auth != null && request.auth.uid == uid && validEntry()
+        && request.resource.data.get('minutes', 0) >= resource.data.get('minutes', 0)
+        && request.resource.data.get('minutes', 0) <= resource.data.get('minutes', 0) + 180;
+    }
+
+    function validEntry() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['uid', 'name', 'hidden', 'minutes', 'sessions'])
+        && (!('name' in d) || (d.name is string && d.name.size() <= 40))
+        && (!('hidden' in d) || d.hidden is bool)
+        && (!('minutes' in d) || (d.minutes is int && d.minutes >= 0))
+        && (!('sessions' in d) || (d.sessions is int && d.sessions >= 0));
+    }
+
     // বাকি সব বন্ধ
     match /{document=**} {
       allow read, write: if false;

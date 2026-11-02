@@ -40,3 +40,7 @@ export const botLinkUrl = async (auth: Auth, app: BotApp) =>
 /** Pomodoro টাইমার কখন শেষ হবে বটকে জানায় (endAt null = বাতিল); বটে যুক্ত না থাকলে কিছু হয় না */
 export const botTimer = (auth: Auth, endAt: number | null, mode: string) =>
   call(auth, '/api/bot/timer', { method: 'POST', body: JSON.stringify({ endAt, mode }) }).catch(() => undefined);
+
+/** Pomodoro টাস্কের রিমাইন্ডার বটে রাখে (time null = বাতিল); Pomodoro বটে যুক্ত না থাকলে কিছু হয় না */
+export const botReminder = (auth: Auth, r: { ref: string; title: string; time: string | null; day: 'today' | 'tomorrow'; repeat: string }) =>
+  call(auth, '/api/bot/reminder', { method: 'POST', body: JSON.stringify(r) }).catch(() => undefined);
