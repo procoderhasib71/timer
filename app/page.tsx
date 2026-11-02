@@ -5,10 +5,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Sun, Calendar, CalendarDays, CheckCircle2, 
-  Plus, MoreVertical, Circle, Clock, Flag, Tag, Repeat, Bell, Send
+  Plus, MoreVertical, Circle, Clock, Flag, Tag, Repeat, Bell, Send,
+  Users, Settings
 } from "lucide-react";
-import { useTimer, MODES } from "@/hooks/useTimer";
-// Firebase Imports
+// 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
+import { useTimer } from "@/hooks/useTimer";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
@@ -34,23 +35,19 @@ interface Task {
 const CATEGORIES = ["HSC", "Admission", "Medical", "Varsity", "MBBS"];
 
 export default function PomodoroPage() {
-  // Navigation States
   const [currentScreen, setCurrentScreen] = useState<'home' | 'tasks' | 'timer'>('home');
   const [activeList, setActiveList] = useState("Today");
   
-  // Modal & Popup States
   const [showStopModal, setShowStopModal] = useState(false);
   const [showTaskSelector, setShowTaskSelector] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   
-  // Form States
   const [showCompletedSection, setShowCompletedSection] = useState(false); 
   const [showAllCompletedTasks, setShowAllCompletedTasks] = useState(false);
   const [editModalField, setEditModalField] = useState<'none' | 'category' | 'priority' | 'dueDate' | 'reminder' | 'repeat'>('none');
   const [addTab, setAddTab] = useState<'pomo' | 'date' | 'priority' | 'tag'>('pomo');
   
-  // Inputs
   const [quickNewTaskTitle, setQuickNewTaskTitle] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [estimatedPomos, setEstimatedPomos] = useState(1);
@@ -58,33 +55,31 @@ export default function PomodoroPage() {
   const [addPriority, setAddPriority] = useState(0); 
   const [addCategory, setAddCategory] = useState("HSC");
   
-  // Timer & App Data States
-  const { mode, timeLeft, isActive, toggleTimer, resetTimer } = useTimer("pomodoro");
+  // Timer Hook
+  const { mode, timeLeft, isActive, toggleTimer, resetTimer, adjustTime, initialDuration, changeMode, getSettings } = useTimer("pomodoro");
   const [activeCategory, setActiveCategory] = useState("HSC"); 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const sessionState = useRef({ timeLeft, isActive, activeTask, mode, activeCategory });
-  
-  useEffect(() => {
-    sessionState.current = { timeLeft, isActive, activeTask, mode, activeCategory };
-  }, [timeLeft, isActive, activeTask, mode, activeCategory]);
+  const sessionState = useRef({ timeLeft, isActive, activeTask, mode, activeCategory, initialDuration });
+  const wasActiveRef = useRef(false);
 
-  // ==========================================
-  // DYNAMIC DATE LOGIC (SATURDAY TO FRIDAY)
-  // ==========================================
+  useEffect(() => {
+    sessionState.current = { timeLeft, isActive, activeTask, mode, activeCategory, initialDuration };
+    if (isActive) wasActiveRef.current = true;
+  }, [timeLeft, isActive, activeTask, mode, activeCategory, initialDuration]);
+
   const getWeekRange = () => {
     const now = new Date();
-    const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    // Calculate how many days to subtract to reach the previous/current Saturday
+    const day = now.getDay(); 
     const diffToSat = day === 6 ? 0 : -(day + 1);
     
     const startDate = new Date(now);
     startDate.setDate(now.getDate() + diffToSat);
     
     const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6); // Add 6 days to get to Friday
+    endDate.setDate(startDate.getDate() + 6); 
     
     const formatOpts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
     
@@ -97,9 +92,6 @@ export default function PomodoroPage() {
 
   const weekData = getWeekRange();
 
-  // ==========================================
-  // FIREBASE SYNC LOGIC (Single Document Array)
-  // ==========================================
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -137,7 +129,9 @@ export default function PomodoroPage() {
 
   const saveFocusSession = async (finalTimeLeft: number, isCompleted: boolean) => {
     if (!userId) return;
-    const timeSpentInSeconds = MODES[mode] - finalTimeLeft;
+    const currentInitial = sessionState.current.initialDuration;
+    const timeSpentInSeconds = currentInitial - finalTimeLeft;
+    
     if (timeSpentInSeconds >= 60) {
       try {
         await addDoc(collection(db, 'users', userId, 'sessions'), {
@@ -161,12 +155,33 @@ export default function PomodoroPage() {
     }
   };
 
-  useEffect(() => { if (timeLeft === 0 && userId) saveFocusSession(0, true); }, [timeLeft, userId]);
+  // AUTO-BREAK & AUTO-NEXT LOGIC
+  useEffect(() => { 
+    if (timeLeft === 0 && userId && wasActiveRef.current) {
+      wasActiveRef.current = false;
+      
+      saveFocusSession(0, true).then(() => {
+        const settings = getSettings();
+        
+        if (mode === 'pomodoro') {
+          const currentCount = (activeTask?.completedPomodoros || 0) + 1;
+          const longBreakInterval = settings.longBreakInterval || 4;
+          const nextMode = (currentCount % longBreakInterval === 0) ? 'longBreak' : 'shortBreak';
+          const autoBreak = settings.autoStartBreak ?? true;
+          
+          changeMode(nextMode, autoBreak);
+        } else {
+          const autoNext = settings.autoStartNext ?? false;
+          changeMode('pomodoro', autoNext);
+        }
+      });
+    } 
+  }, [timeLeft, userId, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleAppClose = () => {
-      const { timeLeft, isActive, mode } = sessionState.current;
-      if (isActive || timeLeft < MODES[mode]) saveFocusSession(timeLeft, false);
+      const { timeLeft, isActive, initialDuration } = sessionState.current;
+      if (isActive || timeLeft < initialDuration) saveFocusSession(timeLeft, false);
     };
     window.addEventListener('beforeunload', handleAppClose);
     window.addEventListener('pagehide', handleAppClose);
@@ -174,15 +189,12 @@ export default function PomodoroPage() {
   }, [userId]);
 
   const confirmStopTimer = () => {
-    if (isActive || timeLeft < MODES[mode]) saveFocusSession(timeLeft, false);
+    const { timeLeft, isActive, initialDuration } = sessionState.current;
+    if (isActive || timeLeft < initialDuration) saveFocusSession(timeLeft, false);
     resetTimer();
     setShowStopModal(false);
     setCurrentScreen('home');
   };
-
-  // ==========================================
-  // TASK ACTIONS
-  // ==========================================
 
   const openAddTaskModal = () => {
     const defaultList = activeList !== "Completed" ? activeList : "Today";
@@ -243,11 +255,36 @@ export default function PomodoroPage() {
     handleUpdateTaskDetails(task.id, { completed: isCompleting, completedAt: completedAtTime });
   };
 
-  // ==========================================
-  // HELPERS & SELECTORS
-  // ==========================================
+  // SWIPE TO ADJUST LOGIC
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragLastX, setDragLastX] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
+    if (isActive) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    setDragStartX(clientX);
+    setDragLastX(clientX);
+  };
+
+  const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
+    if (dragStartX === null || dragLastX === null || isActive) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const diff = clientX - dragLastX;
+    
+    if (Math.abs(diff) > 15) { 
+      const minutesToAdjust = diff > 0 ? 1 : -1;
+      adjustTime(minutesToAdjust * 60);
+      setDragLastX(clientX);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDragStartX(null);
+    setDragLastX(null);
+  };
+
   const svgSize = 420; const center = svgSize / 2; const radius = 145; const circumference = 2 * Math.PI * radius;
-  const progress = ((MODES[mode] - timeLeft) / MODES[mode]) * 100;
+  const progress = initialDuration > 0 ? ((initialDuration - timeLeft) / initialDuration) * 100 : 0;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   const formatTime = (seconds: number) => {
@@ -288,13 +325,8 @@ export default function PomodoroPage() {
   const todayEstimatedTime = todayTasks.reduce((acc, curr) => acc + ((curr.estimatedPomodoros || 1) * 25), 0);
   const totalElapsedPomodoros = tasks.reduce((acc, curr) => acc + (curr.completedPomodoros || 0), 0);
 
-  const isInitialState = timeLeft === MODES[mode] && !isActive;
-  const isPausedState = !isActive && timeLeft < MODES[mode];
-
-
-  // ==========================================
-  // RENDER FUNCTIONS
-  // ==========================================
+  const isInitialState = timeLeft === initialDuration && !isActive;
+  const isPausedState = !isActive && timeLeft < initialDuration;
 
   const renderTaskItem = (task: Task) => (
     <div key={task.id} onClick={() => setEditingTask(task)} className={`flex items-start justify-between p-4 border rounded-2xl cursor-pointer group transition-colors shadow-sm dark:shadow-none ${task.completed ? 'bg-slate-100 dark:bg-[#2c2c2e]/60 border-slate-200 dark:border-white/5 opacity-60' : 'bg-white dark:bg-[#2c2c2e] border-slate-200 dark:border-white/5 hover:border-indigo-500/30'}`}>
@@ -453,15 +485,24 @@ export default function PomodoroPage() {
       <div className="w-full max-w-xl px-6 flex items-center justify-between mb-8 z-30">
         <button onClick={() => setCurrentScreen('tasks')} className="p-2 text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors"><ChevronDown size={28} strokeWidth={1} /></button>
         <button onClick={() => setShowTaskSelector(true)} className="bg-white/80 dark:bg-black/30 dark:hover:bg-black/40 backdrop-blur-md border border-slate-200 dark:border-white/10 px-6 py-2.5 rounded-full flex items-center gap-3 text-slate-800 dark:text-white shadow-sm dark:shadow-lg transition-colors cursor-pointer">
-          <div className={`w-2 h-2 rounded-full transition-all duration-700 ${isActive ? 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-slate-300 dark:bg-slate-500'}`}></div>
+          <div className={`w-2 h-2 rounded-full transition-all duration-700 ${isActive ? 'bg-indigo-500 animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.8)]' : 'bg-slate-300 dark:bg-slate-500'}`}></div>
           <span className="text-[13px] font-medium tracking-wide max-w-[200px] truncate">{activeTask ? activeTask.title : "Select a Task"}</span>
           <ChevronDown size={14} className="text-slate-400 dark:text-white/50" />
         </button>
         <button onClick={() => setShowStopModal(true)} className="p-2 text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={26} strokeWidth={1} /></button>
       </div>
 
-      <div className={`relative flex items-center justify-center mt-auto mb-auto transition-transform duration-1000 ease-out ${isActive ? 'scale-[1.02]' : 'scale-100'}`}>
-        <svg width={svgSize} height={svgSize} className="relative z-10 drop-shadow-sm dark:drop-shadow-xl">
+      <div 
+        className={`relative flex items-center justify-center mt-auto mb-auto transition-transform duration-1000 ease-out select-none ${isActive ? 'scale-[1.02]' : 'scale-100'} ${!isActive ? 'cursor-ew-resize' : ''}`}
+        onTouchStart={handleDragStart}
+        onTouchMove={handleDragMove}
+        onTouchEnd={handleDragEnd}
+        onMouseDown={handleDragStart}
+        onMouseMove={handleDragMove}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={handleDragEnd}
+      >
+        <svg width={svgSize} height={svgSize} className="relative z-10 drop-shadow-sm dark:drop-shadow-xl pointer-events-none">
           <g className={`transition-opacity duration-1000 ease-out ${isActive ? 'opacity-100' : 'opacity-0'}`} style={{ transformOrigin: `${center}px ${center}px` }}>
             <g style={{ transformOrigin: `${center}px ${center}px`, animationDuration: '40s' }} className={`animate-spin ${!isActive ? 'animation-paused' : ''}`}>
               <circle cx={center} cy={center} r={radius + 35} stroke="currentColor" strokeWidth="1" fill="transparent" className="text-slate-200 dark:text-white/10" />
@@ -475,9 +516,18 @@ export default function PomodoroPage() {
           <circle cx={center} cy={center} r={radius} stroke="currentColor" strokeWidth="2" fill="transparent" className="text-slate-200 dark:text-white/15" />
           <circle cx={center} cy={center} r={radius} stroke="currentColor" strokeWidth="3" fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="text-slate-900 dark:text-white transition-all duration-1000 ease-linear" transform={`rotate(-90 ${center} ${center})`} />
         </svg>
-        <div className="absolute flex flex-col items-center justify-center z-20">
-          <span className="text-[5rem] font-extralight tracking-wider tabular-nums text-slate-800 dark:text-white">{formatTime(timeLeft)}</span>
-          <span className="text-[11px] font-bold uppercase tracking-[0.4em] mt-2 text-slate-500 dark:text-white/70">{activeTask ? activeTask.category : activeCategory}</span>
+        <div className="absolute flex flex-col items-center justify-center z-20 pointer-events-none">
+          <span className="text-[5rem] font-extralight tracking-wider tabular-nums text-slate-800 dark:text-white">
+            {formatTime(timeLeft)}
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.4em] mt-2 text-slate-500 dark:text-white/70">
+            {activeTask ? activeTask.category : (mode === 'pomodoro' ? activeCategory : mode === 'shortBreak' ? 'Short Break' : 'Long Break')}
+          </span>
+          {!isActive && (
+            <span className="absolute -bottom-8 text-[10px] font-bold text-slate-400 dark:text-slate-500 opacity-60 animate-pulse tracking-wider">
+              ⟵ SWIPE ⟶
+            </span>
+          )}
         </div>
       </div>
       
@@ -496,12 +546,10 @@ export default function PomodoroPage() {
 
   const renderModals = () => (
     <>
-      {/* 1. Add Task Centered Popup Modal (No blur/dark background as requested) */}
       {isAddingTask && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0" onClick={() => setIsAddingTask(false)} />
           <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-3xl p-5 shadow-2xl animate-in zoom-in-95 duration-300 relative z-10 border border-slate-200 dark:border-white/5">
-            
             <div className="flex justify-between items-center mb-5 ml-2">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create New Task</h3>
               <button onClick={() => setIsAddingTask(false)} className="p-2 bg-slate-100 dark:bg-[#2c2c2e] rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"><X size={18} /></button>
@@ -569,7 +617,6 @@ export default function PomodoroPage() {
         </div>
       )}
 
-      {/* 2. Edit Task Modal (Bottom Sheet) */}
       {editingTask && (
         <div className="fixed inset-0 z-[200] flex flex-col justify-end bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="fixed inset-0" onClick={() => setEditingTask(null)} />
@@ -676,7 +723,6 @@ export default function PomodoroPage() {
         </div>
       )}
 
-      {/* 3. Quick Selector Modal */}
       {showTaskSelector && (
         <div className="fixed inset-0 z-[150] flex items-start justify-center pt-[calc(6rem+env(safe-area-inset-top))] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 px-5">
           <div className="fixed inset-0" onClick={() => setShowTaskSelector(false)} />
@@ -705,7 +751,6 @@ export default function PomodoroPage() {
         </div>
       )}
 
-      {/* 4. Stop Session Modal */}
       {showStopModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm px-5">
           <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-xs rounded-3xl p-6 shadow-2xl animate-in zoom-in-95">
@@ -720,9 +765,6 @@ export default function PomodoroPage() {
     </>
   );
 
-  // ==========================================
-  // MAIN APP RETURN
-  // ==========================================
   return (
     <div className="w-full bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 min-h-[100dvh] relative overflow-hidden">
       
@@ -730,12 +772,28 @@ export default function PomodoroPage() {
       {currentScreen === 'tasks' && renderTasksList()}
       {currentScreen === 'timer' && renderTimerScreen()}
 
-      {/* Global Floating Timer Button */}
       {!editingTask && !isAddingTask && currentScreen !== 'timer' && !showTaskSelector && !showStopModal && (
-        <div className="fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-40 pointer-events-none">
-          <button onClick={() => setCurrentScreen('timer')} className="w-[72px] h-[72px] rounded-full border-[4px] border-white dark:border-[#0f172a] bg-slate-900 dark:bg-slate-800 shadow-[0_8px_30px_rgba(15,23,42,0.25)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all flex items-center justify-center pointer-events-auto">
-            <span className="text-white text-2xl font-bold tracking-wider">{currentMinutes}</span>
-          </button>
+        <div className="fixed bottom-[calc(7.2rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-40 pointer-events-none">
+          <div className="relative pointer-events-auto group">
+            {isActive && (
+              <div className="absolute -inset-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-50 blur-lg animate-pulse duration-[2000ms]"></div>
+            )}
+            <button 
+              onClick={() => setCurrentScreen('timer')} 
+              className={`relative w-[68px] h-[68px] rounded-full flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 shadow-2xl backdrop-blur-xl ${
+                isActive 
+                  ? 'bg-gradient-to-br from-indigo-500/90 to-purple-600/90 border border-white/30 text-white' 
+                  : 'bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/50 text-slate-800 dark:text-slate-100'
+              }`}
+            >
+              <span className="text-xl font-bold tracking-tight tabular-nums mt-0.5">
+                {currentMinutes}
+              </span>
+              <span className={`text-[9px] uppercase tracking-widest font-bold -mt-0.5 ${isActive ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                {isActive ? 'Focus' : 'Min'}
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
