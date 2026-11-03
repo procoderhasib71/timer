@@ -15,12 +15,11 @@
   --font-sans: var(--font-inter), var(--font-bangla), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* iOS Safari-এর জন্য ডার্ক মোডের আসল কালারটা এখানে দেওয়া হলো */
-    --background: #0f172a; 
-    --foreground: #f8fafc;
-  }
+/* পেছনের রং অ্যাপের থিম (next-themes এর .dark) অনুযায়ী, ফোনের সেটিং অনুযায়ী নয়;
+   নইলে ফোন লাইট আর অ্যাপ ডার্ক হলে iPhone এর কিনারায় (নচ, নিচের দাগ, টেনে নামালে) সাদা পট্টি দেখা যেত */
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
 }
 
 /* iOS Safari Top Bar Force Color */

@@ -43,14 +43,14 @@ export default function AuthPage() {
 
   if (loading || !checked || leaving) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
+      <div className="fixed inset-0 z-[2001] flex items-center justify-center bg-[#0f172a]">
         <Loader2 className="animate-spin text-indigo-500" size={32} />
       </div>
     );
   }
 
   return (
-    <div className="dark min-h-screen flex flex-col items-center justify-center p-5 bg-[#0f172a] text-white">
+    <div className="dark fixed inset-0 z-[2001] overflow-y-auto flex flex-col items-center justify-center p-5 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-[#0f172a] text-white">
       <PhoneAuthCard
         auth={auth}
         accent="bg-indigo-600 hover:bg-indigo-500"
