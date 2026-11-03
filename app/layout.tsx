@@ -7,6 +7,8 @@ import { ThemeProvider } from "./components/shared/ThemeProvider";
 import TopHeader from "./components/shared/TopHeader";
 import BottomNav from "./components/shared/BottomNav";
 import InstallPrompt from "./components/pwa/InstallPrompt";
+import PwaRegistry from "./components/pwa/PwaRegistry";
+import OfflineBanner from "./components/pwa/OfflineBanner";
 import Onboarding from "./components/shared/Onboarding";
 import { AccountSheetProvider } from "./components/account/AccountSheet";
 import { LangProvider } from "@/lib/i18n";
@@ -15,15 +17,18 @@ import { LangProvider } from "@/lib/i18n";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const bangla = Hind_Siliguri({ subsets: ["bengali"], weight: ["400", "500", "600", "700"], variable: "--font-bangla" });
 
+// Money অ্যাপের মতো: উপরের বারের রং ফোনের লাইট/ডার্ক অনুযায়ী
 export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover", // Notch/Island সাপোর্ট
 };
-
-const THEME_COLOR_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches)||location.pathname==='/login';var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#0f172a':'#f8fafc');}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "Pomodoro BD",
@@ -32,7 +37,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",   // অ্যাপ স্ট্যাটাস বারের নিচ পর্যন্ত; নচের জায়গায় নিচের পট্টি
+    statusBarStyle: "black-translucent",   // অ্যাপ স্ট্যাটাস বারের নিচ পর্যন্ত; হেডারের উপরের padding নচের জায়গা রাখে
     title: "Pomodoro BD",
   },
 };
@@ -46,21 +51,18 @@ export default function RootLayout({
     <html lang="bn" suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        {/* Safari উপরের বারের রং পাতা আঁকার আগেই নিয়ে নেয়; তাই ফোনের সেটিং নয়, অ্যাপের থিম (next-themes এর localStorage) দেখে এখানেই বসাই */}
-        <meta name="theme-color" content="#0f172a" />
-        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />
       </head>
       <body className={`${inter.variable} ${bangla.variable} font-sans antialiased min-h-screen bg-[var(--background)] transition-colors`}>
+        <PwaRegistry />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <LangProvider>
-          {/* iPhone এর নচ/ঘড়ির পেছনে: স্ট্যাটাস বারের লেখা সাদা, তাই লাইট মোডে বেগুনি, ডার্কে অ্যাপের রং। নচ না থাকলে উচ্চতা ০ */}
-          <div aria-hidden className="fixed top-0 inset-x-0 z-[2000] h-[env(safe-area-inset-top)] bg-indigo-600 dark:bg-[#0f172a] pointer-events-none" />
           
-          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
             
             <AuthGate>
             <AccountSheetProvider>
             <TopHeader />
+            <OfflineBanner />
             
             <main className="flex-1">
               {children}

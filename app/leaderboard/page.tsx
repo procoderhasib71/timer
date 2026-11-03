@@ -50,7 +50,7 @@ export default function LeaderboardPage() {
     <div className="w-full min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 pb-40">
 
       {/* HEADER */}
-      <div className="px-5 pt-8 pb-4 flex items-center justify-between sticky top-[env(safe-area-inset-top)] bg-slate-50/90 dark:bg-[#0f172a]/90 backdrop-blur-md z-30">
+      <div className="px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-4 flex items-center justify-between relative z-30">
         <div className="flex items-center gap-3">
           <Link href="/" className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
             <ArrowLeft size={24} />
