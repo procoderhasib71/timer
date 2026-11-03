@@ -43,7 +43,7 @@ export default function LeaderboardPage() {
     if (index === 1) return 'bg-slate-100 border-slate-200 dark:bg-slate-500/10 dark:border-slate-500/20';
     if (index === 2) return 'bg-orange-50 border-orange-200 dark:bg-orange-500/10 dark:border-orange-500/20';
     if (isMe) return 'bg-indigo-50 border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/20';
-    return 'bg-white border-transparent hover:border-slate-200 dark:bg-[#1c1c1e] dark:hover:border-white/10 shadow-sm';
+    return 'bg-white border-transparent hover:border-slate-200 dark:bg-[#1e293b] dark:hover:border-white/10 shadow-sm';
   };
 
   return (
@@ -65,14 +65,14 @@ export default function LeaderboardPage() {
       <div className="px-5 space-y-4 mt-2 max-w-4xl mx-auto">
 
         {/* TIME FILTER TABS */}
-        <div className="bg-slate-200/50 dark:bg-[#1c1c1e] p-1 rounded-2xl flex items-center justify-between mb-6">
+        <div className="bg-slate-200/50 dark:bg-[#1e293b] p-1 rounded-2xl flex items-center justify-between mb-6">
           {TABS.map(([id, label]) => (
             <button
               key={id}
               onClick={() => setBoard(id)}
               className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-300 ${
                 board === id
-                  ? 'bg-white dark:bg-[#2c2c2e] text-slate-900 dark:text-white shadow-sm'
+                  ? 'bg-white dark:bg-[#2a3850] text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
@@ -83,7 +83,7 @@ export default function LeaderboardPage() {
 
         {rows === null ? (
           <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-white dark:bg-[#1c1c1e] animate-pulse" />)}
+            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-white dark:bg-[#1e293b] animate-pulse" />)}
           </div>
         ) : rows.length === 0 ? (
           <div className="text-center py-16 px-6">
@@ -110,7 +110,7 @@ export default function LeaderboardPage() {
                       idx === 0 ? 'bg-yellow-400 text-white' :
                       idx === 1 ? 'bg-slate-300 text-slate-700' :
                       idx === 2 ? 'bg-orange-400 text-white' :
-                      'bg-slate-100 dark:bg-[#2c2c2e] text-slate-700 dark:text-slate-300'
+                      'bg-slate-100 dark:bg-[#2a3850] text-slate-700 dark:text-slate-300'
                     }`}>
                       {label.charAt(0).toUpperCase()}
                     </div>
@@ -136,7 +136,7 @@ export default function LeaderboardPage() {
       {/* নিজের র‍্যাঙ্ক, নিচে আটকানো */}
       {rows !== null && (
         <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-0 right-0 px-5 z-40 flex justify-center pointer-events-none">
-          <div className="bg-slate-900 dark:bg-[#2c2c2e] border border-slate-800 dark:border-white/10 p-3 rounded-2xl shadow-xl w-full max-w-md flex items-center justify-between pointer-events-auto">
+          <div className="bg-slate-900 dark:bg-[#2a3850] border border-slate-800 dark:border-white/10 p-3 rounded-2xl shadow-xl w-full max-w-md flex items-center justify-between pointer-events-auto">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-500 text-white text-xs font-extrabold min-w-8 h-8 px-1.5 rounded-full flex items-center justify-center shadow-md">
                 {mine ? `#${n(mine.rank)}` : "–"}

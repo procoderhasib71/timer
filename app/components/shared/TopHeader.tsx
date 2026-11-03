@@ -27,7 +27,7 @@ export default function TopHeader() {
 
   // যেই পেজগুলোতে এই হেডারটি হাইড থাকবে (নিজেদের হেডার আছে)
   const hiddenPages = ["/login", "/signup", "/community", "/leaderboard", "/analytics", "/settings"];
-  const btn = "p-2.5 rounded-full bg-slate-200/60 dark:bg-[#1c1c1e] text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-[#2c2c2e] transition-colors active:scale-95";
+  const btn = "p-2.5 rounded-full bg-slate-200/60 dark:bg-[#1e293b] text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-[#2a3850] transition-colors active:scale-95";
 
   return (
     <header
@@ -39,7 +39,7 @@ export default function TopHeader() {
       <Link href="/" className="flex items-center gap-2.5">
         <Image src="/icons/icon-192.png" alt="" width={34} height={34} className="rounded-xl shadow-sm" />
         <span className="text-[17px] font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Pomodoro <span className="text-indigo-600 dark:text-indigo-400">BD</span>
+          Shonghi <span className="text-indigo-600 dark:text-indigo-400">Focus</span>
         </span>
       </Link>
       <div className="flex items-center gap-2">

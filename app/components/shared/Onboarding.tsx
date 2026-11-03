@@ -33,7 +33,7 @@ export default function Onboarding() {
   const slides = [
     {
       icon: <Timer size={40} />,
-      title: t("Pomodoro BD তে স্বাগতম", "Welcome to Pomodoro BD"),
+      title: t("Shonghi Focus এ স্বাগতম", "Welcome to Shonghi Focus"),
       body: t("মন দিয়ে পড়ার টাইমার আর পড়ার পরিকল্পনা, এক জায়গায়।", "A focus timer and study planner, all in one place."),
       extra: (
         <div className="flex gap-2 justify-center mt-6">
@@ -76,7 +76,7 @@ export default function Onboarding() {
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="w-full sm:max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-[2rem] sm:rounded-[2rem] p-7 pb-[calc(1.75rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+      <div className="w-full sm:max-w-md bg-white dark:bg-[#1e293b] rounded-t-[2rem] sm:rounded-[2rem] p-7 pb-[calc(1.75rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
         <div className="flex justify-end">
           {!last && <button onClick={() => finish()} className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">{t("এড়িয়ে যাও", "Skip")}</button>}
         </div>

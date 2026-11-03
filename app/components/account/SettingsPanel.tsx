@@ -226,7 +226,7 @@ export default function SettingsPanel() {
     <div className="text-slate-900 dark:text-slate-200 relative">
       <div className="space-y-5">
 
-        <div className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
+        <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 pt-2">{t("টাইমার", "Timer Configuration")}</h2>
           <div className="divide-y divide-slate-100 dark:divide-white/5">
             <ListItem icon={Music} title={modalConfigs.ringtone.title} value={RINGTONE_LABEL[ringtone] || ringtone} onClick={() => setActiveModal('ringtone')} />
@@ -237,7 +237,7 @@ export default function SettingsPanel() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
+        <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 pt-2">{t("নিজে থেকে", "Automation")}</h2>
           <div className="divide-y divide-slate-100 dark:divide-white/5">
             <ListItem icon={PlayCircle} title={t("বিরতির পর ফোকাস নিজে শুরু", "Auto-Start Pomodoro")} isToggle toggleState={autoStartNext} onToggle={handleToggleAutoNext} />
@@ -246,7 +246,7 @@ export default function SettingsPanel() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
+        <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 pt-2">{t("অ্যাপ", "System")}</h2>
           <div className="divide-y divide-slate-100 dark:divide-white/5">
             <ListItem icon={Languages} title={t("ভাষা", "Language")} value={lang === "bn" ? "বাংলা" : "English"} onClick={() => setLang(lang === "bn" ? "en" : "bn")} />
@@ -276,13 +276,13 @@ export default function SettingsPanel() {
       {activeModal && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 px-4">
           <div className="fixed inset-0" onClick={() => setActiveModal(null)} />
-          <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-sm rounded-[2rem] p-6 shadow-2xl relative z-10 animate-in zoom-in-95 duration-300 border border-slate-200 dark:border-white/5">
+          <div className="bg-white dark:bg-[#1e293b] w-full max-w-sm rounded-[2rem] p-6 shadow-2xl relative z-10 animate-in zoom-in-95 duration-300 border border-slate-200 dark:border-white/5">
 
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                 {modalConfigs[activeModal].title}
               </h3>
-              <button onClick={() => setActiveModal(null)} className="p-2 bg-slate-100 dark:bg-[#2c2c2e] rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors">
+              <button onClick={() => setActiveModal(null)} className="p-2 bg-slate-100 dark:bg-[#2a3850] rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -297,7 +297,7 @@ export default function SettingsPanel() {
                     className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all active:scale-95 ${
                       isSelected
                         ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 shadow-sm'
-                        : 'border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-[#2c2c2e] text-slate-700 dark:text-slate-300 hover:border-indigo-200 dark:hover:border-white/10'
+                        : 'border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-[#2a3850] text-slate-700 dark:text-slate-300 hover:border-indigo-200 dark:hover:border-white/10'
                     }`}
                   >
                     <span className="font-bold text-base">{typeof opt === "number" ? n(opt) : RINGTONE_LABEL[opt] || opt} <span className="text-xs font-medium opacity-70">{modalConfigs[activeModal].suffix}</span></span>

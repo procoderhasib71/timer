@@ -1,7 +1,7 @@
 "use client";
 
 // AdMCQ এর মতো লগইন: ফোন নম্বর + পাসওয়ার্ড (OTP ছাড়া), রেজিস্ট্রেশন আর "পাসওয়ার্ড ভুলে গেছি" তে একবার OTP, আর Google।
-// একই machranga Firebase আর একই লুকানো ইমেইল (8801...@phone.admcq.com), তাই AdMCQ, Money আর Pomodoro তে একটাই অ্যাকাউন্ট।
+// একই machranga Firebase আর একই লুকানো ইমেইল (8801...@phone.admcq.com), তাই সব অ্যাপে একটাই Shonghi Lab অ্যাকাউন্ট।
 // এই ফাইল money-manager-app/app/components/PhoneAuthCard.tsx এও হুবহু আছে; বদলালে দুই জায়গাতেই বদলাও।
 
 import { useEffect, useRef, useState } from "react";
@@ -35,6 +35,14 @@ export function toE164(raw: string) {
   const local = d.startsWith("880") ? d.slice(2) : d;
   return /^01[3-9]\d{8}$/.test(local) ? `+88${local}` : "";
 }
+
+// রেজিস্ট্রেশনের আগে AdMCQ দেখে নেয় নম্বরটায় পাসওয়ার্ডসহ অ্যাকাউন্ট আছে কিনা (অযথা SMS যাতে না যায়)
+const ADMCQ_URL = (process.env.NEXT_PUBLIC_ADMCQ_URL || "https://app.admcq.com").replace(/\/$/, "");
+const isRegistered = (e164: string): Promise<boolean | null> =>
+  fetch(`${ADMCQ_URL}/api/auth/phone?phone=${encodeURIComponent(e164)}`)
+    .then((r) => r.json())
+    .then((j) => (typeof j.registered === "boolean" ? j.registered : null))
+    .catch(() => null);   // দেখা না গেলে আগের মতো OTP পাঠাই
 
 const BN = (s: string) => s.replace(/[০-৯]/g, (x) => String("০১২৩৪৫৬৭৮৯".indexOf(x)));
 
@@ -151,6 +159,15 @@ export default function PhoneAuthCard({ auth, header, accent, onSignedIn }: Prop
     e?.preventDefault();
     run(async () => {
       const n = number();
+      const registered = await isRegistered(n);
+      if (mode === "register" && registered === true) {
+        switchMode("login");
+        throw new Error("আপনার আগে থেকেই অ্যাকাউন্ট আছে। Shonghi Lab এর পাসওয়ার্ড দিয়ে লগইন করুন।");
+      }
+      if (mode === "forgot" && registered === false) {
+        switchMode("register");
+        throw new Error("এই নম্বরে কোনো অ্যাকাউন্ট নেই। নতুন অ্যাকাউন্ট খুলুন।");
+      }
       try {
         recaptcha.current ||= new RecaptchaVerifier(auth, "recaptcha-container", { size: "invisible" });
         confirmation.current = await signInWithPhoneNumber(auth, n, recaptcha.current);
@@ -174,7 +191,7 @@ export default function PhoneAuthCard({ auth, header, accent, onSignedIn }: Prop
       if (mode === "register" && cred.user.providerData.some((p) => p.providerId === "password")) {
         await auth.signOut();
         switchMode("login");
-        throw new Error('This number is already registered. Log in, or use "Forgot password".');
+        throw new Error("আপনার আগে থেকেই অ্যাকাউন্ট আছে। Shonghi Lab এর পাসওয়ার্ড দিয়ে লগইন করুন।");
       }
       setNeedName(!cred.user.displayName);
       setStep("password");
@@ -222,7 +239,7 @@ export default function PhoneAuthCard({ auth, header, accent, onSignedIn }: Prop
     <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl p-7">
       {header}
       <h1 className="text-center text-lg font-black text-slate-800 dark:text-white mb-1">{title}</h1>
-      <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-6">One AdMCQ account for AdMCQ, Money and Pomodoro</p>
+      <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-6">Shonghi Lab account</p>
 
       {error && <div className="mb-5 p-3 rounded-2xl bg-rose-100 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-sm text-rose-600 dark:text-rose-400 text-center">{error}</div>}
 

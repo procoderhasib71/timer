@@ -18,6 +18,8 @@ import { useAccount } from "@/app/components/shared/AuthGate";
 import { useAccountSheet } from "@/app/components/account/AccountSheet";
 import { BotSession, botReminder, botTimerPull, botTimerPush } from "@/lib/admcqAccount";
 import { addMinutes, ensureEntry } from "@/lib/leaderboard";
+import { useFocusStats } from "@/hooks/useFocusStats";
+import { tap } from "@/lib/haptics";
 import { useLang } from "@/lib/i18n";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
@@ -54,6 +56,11 @@ const repeatKey = (v?: string | null) => (v ? LEGACY_REPEAT[v] ?? (REPEATS.some(
 
 /** নিয়মের আজকের দিনে, আগে শেষ করা বারবারের টাস্ক আবার অসম্পূর্ণ করি */
 /** কিছু না থাকলে: আইকন, শিরোনাম আর এক লাইনের পথ দেখানো */
+// প্রতিটা বিষয়ের নিজের রং (নাম থেকে বের করা, তাই সব জায়গায় এক)
+const CAT_COLORS = ["#6366f1", "#14b8a6", "#f59e0b", "#ec4899", "#0ea5e9", "#8b5cf6", "#22c55e", "#f97316"];
+const catColor = (c?: string) => { let h = 0; for (const ch of c || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CAT_COLORS[h % CAT_COLORS.length]; };
+const GOALS = [60, 90, 120, 180, 240, 300];
+
 function EmptyState({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
     <div className="text-center py-12 px-6 animate-in fade-in duration-500">
@@ -114,9 +121,13 @@ export default function PomodoroPage() {
   // সময় শেষ: শব্দ, কাঁপুনি আর নোটিফিকেশন (অ্যাপ পেছনে থাকলেও দেখা যায়)।
   // অনেক পরে টের পেলে (অ্যাপ বন্ধ ছিল) বাজাই না, বিরতিও নিজে শুরু করি না; বট আগেই Telegram এ জানিয়েছে
   const lateFinish = useRef(false);
+  // পোমোডোরো শেষে কয়েক সেকেন্ডের ছোট্ট উদযাপন
+  const [celebrate, setCelebrate] = useState(false);
+  useEffect(() => { if (!celebrate) return; const id = setTimeout(() => setCelebrate(false), 3200); return () => clearTimeout(id); }, [celebrate]);
   const handleTimerFinish = (finishedMode: TimerMode, lateMs = 0) => {
     lateFinish.current = lateMs > 2 * 60 * 1000;
     if (lateFinish.current) return;
+    if (finishedMode === 'pomodoro') setCelebrate(true);
     const settings = JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
     playRingtone(settings.ringtone || "Default");
     vibrate();
@@ -136,6 +147,12 @@ export default function PomodoroPage() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const userName = (account?.name || auth.currentUser?.displayName || "").split(" ")[0];
+  const { todayMinutes, streak, streakCapped } = useFocusStats(userId);
+  // আজকের লক্ষ্য (মিনিট): গোলে চাপলে পরেরটায় যায়, এই ফোনেই মনে থাকে
+  const [dailyGoal, setDailyGoal] = useState(120);
+  useEffect(() => { try { const g = Number(localStorage.getItem('pomodoro_daily_goal')); if (GOALS.includes(g)) setDailyGoal(g); } catch {} }, []);
+  const nextGoal = () => { const g = GOALS[(GOALS.indexOf(dailyGoal) + 1) % GOALS.length]; setDailyGoal(g); try { localStorage.setItem('pomodoro_daily_goal', String(g)); } catch {} };
+  const quickAddRef = useRef<HTMLInputElement>(null);
   const [hour, setHour] = useState<number | null>(null);
 
   // সময় অনুযায়ী শুভেচ্ছা (সার্ভারে নয়, ব্রাউজারের ঘড়িতে)
@@ -162,7 +179,7 @@ export default function PomodoroPage() {
   // ব্রাউজারের ট্যাবে বাকি সময়
   useEffect(() => {
     const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-    const title = !isActive && timeLeft === initialDuration ? "Pomodoro BD"
+    const title = !isActive && timeLeft === initialDuration ? "Shonghi Focus"
       : `${isActive ? "" : "⏸ "}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} · ${mode === 'pomodoro' ? t("ফোকাস", "Focus") : t("বিরতি", "Break")}`;
     document.title = title;
     // পেজ লোডের পরে Next নিজের title বসায়; থামানো টাইমারে তাই একটু পরে আবার
@@ -593,31 +610,39 @@ export default function PomodoroPage() {
   const isInitialState = timeLeft === initialDuration && !isActive;
   const isPausedState = !isActive && timeLeft < initialDuration;
 
-  const renderTaskItem = (task: Task) => (
-    <div key={task.id} onClick={() => setEditingTask(task)} className={`flex items-start justify-between p-4 border rounded-2xl cursor-pointer group transition-colors shadow-sm dark:shadow-none ${task.completed ? 'bg-slate-100 dark:bg-[#2c2c2e]/60 border-slate-200 dark:border-white/5 opacity-60' : 'bg-white dark:bg-[#2c2c2e] border-slate-200 dark:border-white/5 hover:border-indigo-500/30'}`}>
-      <div className="flex items-start gap-3 flex-1">
-        <button onClick={(e) => toggleTaskComplete(task, e)} className={`mt-0.5 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
-          {task.completed ? <CheckCircle2 size={22} /> : <Circle size={22} strokeWidth={1.5} />}
+  // কাজের সারি: বাঁয়ে বিষয়ের রঙের দাগ, নিচে ছোট ছোট তথ্য, ডানে এক চাপে ফোকাস
+  const renderTaskItem = (task: Task) => {
+    const color = catColor(task.category);
+    const done = task.completedPomodoros || 0, est = task.estimatedPomodoros || 1;
+    return (
+      <div key={task.id} onClick={() => setEditingTask(task)} className={`surface press relative overflow-hidden flex items-center gap-3 pl-4 pr-2.5 py-3.5 rounded-2xl cursor-pointer ${task.completed ? 'opacity-60' : ''}`}>
+        <span aria-hidden className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full" style={{ background: color }} />
+        <button onClick={(e) => { tap(task.completed ? 8 : 15); toggleTaskComplete(task, e); }} className={`shrink-0 transition-colors ${task.completed ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600 hover:text-indigo-500'}`}>
+          {task.completed ? <CheckCircle2 size={22} /> : <Circle size={22} strokeWidth={1.75} />}
         </button>
-        <div className="flex-1">
-          <h3 className={`text-sm font-medium transition-colors ${task.completed ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-800 dark:text-slate-200'}`}>{task.title}</h3>
-          <div className="flex items-center gap-2 mt-2 text-[11px] font-bold text-slate-500">
-            <div className="flex gap-0.5 items-center mr-2"><span className="text-red-400 mr-1 text-xs">🍅 {n(task.completedPomodoros || 0)}/{n(task.estimatedPomodoros || 1)}</span></div>
-            {!task.completed && task.priority && task.priority > 0 && (<span className="flex items-center"><Flag size={10} className={getPriorityColor(task.priority)} /></span>)}
-            <span className="bg-slate-100 dark:bg-black/30 px-1.5 py-0.5 rounded text-[9px]">{task.category}</span>
-            {task.completed && task.completedAt ? (
-               <span className="flex items-center gap-1 text-emerald-500/80 ml-1"><CheckCircle2 size={10}/> {formatCompletedDate(task.completedAt)}</span>
-            ) : (
-               task.dueDate && <span className="flex items-center gap-1 text-slate-400 ml-1"><CalendarDays size={10}/> {listLabel(task.dueDate)}</span>
-            )}
+        <div className="flex-1 min-w-0">
+          <h3 className={`text-[14px] font-semibold truncate ${task.completed ? 'text-slate-400 line-through' : 'text-slate-800 dark:text-slate-100'}`}>{task.title}</h3>
+          <div className="flex items-center gap-2 mt-1 text-[11px] font-semibold text-slate-400 min-w-0">
+            {task.category && <span className="truncate" style={{ color }}>{task.category}</span>}
+            <span className="flex items-center gap-1 shrink-0">
+              {Array.from({ length: Math.min(est, 6) }, (_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i < done ? 'bg-rose-400' : 'bg-slate-200 dark:bg-white/10'}`} />)}
+              {est > 6 && <span>+{n(est - 6)}</span>}
+            </span>
+            {!task.completed && task.priority && task.priority > 0 ? <Flag size={10} className={`shrink-0 ${getPriorityColor(task.priority)}`} /> : null}
+            {task.completed && task.completedAt
+              ? <span className="flex items-center gap-1 text-emerald-500/80 truncate"><CheckCircle2 size={10} /> {formatCompletedDate(task.completedAt)}</span>
+              : task.dueDate && <span className="flex items-center gap-1 truncate"><CalendarDays size={10} /> {listLabel(task.dueDate)}</span>}
           </div>
         </div>
+        {!task.completed && (
+          <button onClick={(e) => { e.stopPropagation(); setActiveTask(task); setCurrentScreen('timer'); }} aria-label={t("ফোকাস শুরু", "Start focus")}
+            className="press shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-500/25">
+            <Play size={14} fill="currentColor" className="ml-0.5" />
+          </button>
+        )}
       </div>
-      {!task.completed && (
-        <button onClick={(e) => { e.stopPropagation(); setActiveTask(task); setCurrentScreen('timer'); }} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-full transition-colors"><Play size={20} fill="currentColor" /></button>
-      )}
-    </div>
-  );
+    );
+  };
 
   // হোম: বড় "পরের কাজ" কার্ড থেকে এক চাপে ফোকাস, আজকের হিসাব, আজকের কাজের ঝলক আর বাকি তালিকা
   const todayStartMs = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
@@ -648,56 +673,84 @@ export default function PomodoroPage() {
     <div className="w-full max-w-2xl mx-auto pb-44 px-5 pt-2 space-y-6 animate-in fade-in duration-300">
       <div>
         <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">{todayDate}</p>
-        <h1 className="text-[26px] leading-tight font-extrabold text-slate-900 dark:text-white tracking-tight mt-0.5">
+        <h1 className="text-[28px] leading-tight font-extrabold text-slate-900 dark:text-white tracking-tight mt-0.5">
           {greeting}{userName ? <>, <span className="text-indigo-600 dark:text-indigo-400">{userName}</span></> : ""}
         </h1>
       </div>
 
-      {/* পরের কাজ */}
-      <div className="relative rounded-[28px] p-5 text-white bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 shadow-xl shadow-indigo-500/25">
+      {/* পরের কাজ: লাইটে হালকা বেগুনি আভা (কড়া রং নয়, পুরো সাদাও নয়), ডার্কে হালকা বেগুনি কাচ */}
+      <div className="relative rounded-[28px] p-5 text-slate-900 dark:text-white bg-gradient-to-br from-indigo-200/45 via-indigo-100/70 to-violet-200/45 border border-indigo-200/60 shadow-[0_12px_32px_-16px_rgba(79,70,229,0.3)] dark:border-transparent dark:shadow-none dark:bg-gradient-to-br dark:from-indigo-500/25 dark:via-indigo-500/15 dark:to-violet-500/20 dark:ring-1 dark:ring-inset dark:ring-indigo-300/15">
         {/* ঝাপসা আলো আলাদা ঘরে কেটে রাখি: Safari তে overflow-hidden এ blur গোল কোণের বাইরে চৌকো হয়ে দেখা যেত (ছায়াটা বাইরে থাকে) */}
-        <div className="absolute inset-0 rounded-[28px] overflow-hidden [clip-path:inset(0_round_28px)] pointer-events-none">
+        <div className="hidden dark:block absolute inset-0 rounded-[28px] overflow-hidden [clip-path:inset(0_round_28px)] pointer-events-none">
           <div className="absolute -top-16 -right-12 w-48 h-48 rounded-full bg-white/10 blur-2xl" />
           <div className="absolute -bottom-20 -left-10 w-44 h-44 rounded-full bg-violet-300/20 blur-2xl" />
         </div>
         <div className="relative">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider bg-white/15 px-2.5 py-1 rounded-full">
+            <span className="text-[11px] font-bold uppercase tracking-wider bg-white/70 text-indigo-600 dark:bg-white/15 dark:text-white px-2.5 py-1 rounded-full">
               {timerRunning ? (isActive ? t("ফোকাস চলছে", "Focusing now") : t("থেমে আছে", "Paused")) : t("পরের কাজ", "Up next")}
             </span>
-            {nextTask && <span className="text-xs font-bold text-white/85">🍅 {n(nextTask.completedPomodoros || 0)}/{n(nextTask.estimatedPomodoros || 1)}</span>}
+            {nextTask && <span className="text-xs font-bold text-slate-500 dark:text-white/85">🍅 {n(nextTask.completedPomodoros || 0)}/{n(nextTask.estimatedPomodoros || 1)}</span>}
           </div>
           <h2 className="text-xl font-extrabold mt-3 leading-snug line-clamp-2">
             {nextTask ? nextTask.title : t("আজ কী পড়বে? একটা কাজ যোগ করো", "What will you study? Add a task")}
           </h2>
-          <p className="text-[13px] text-white/75 mt-1">
+          <p className="text-[13px] text-slate-500 dark:text-white/75 mt-1">
             {nextTask ? `${nextTask.category} · ${dur((nextTask.estimatedPomodoros || 1) * 25)}` : t("অথবা কাজ ছাড়াই একটা ফোকাস সেশন চালাও", "Or just start a focus session")}
           </p>
           <div className="mt-5 flex items-center gap-3">
-            <button onClick={startFocus} className="flex items-center gap-2 bg-white text-indigo-700 font-extrabold text-sm pl-4 pr-5 py-3 rounded-2xl shadow-lg shadow-indigo-900/20 hover:bg-indigo-50 active:scale-95 transition-all">
+            <button onClick={() => { tap(12); startFocus(); }} className="flex items-center gap-2 bg-white text-indigo-600 dark:bg-gradient-to-br dark:from-[#818cf8] dark:to-[#c084fc] dark:text-white font-extrabold text-sm pl-4 pr-5 py-3 rounded-2xl shadow-[0_6px_18px_-6px_rgba(79,70,229,0.28)] dark:shadow-none hover:bg-indigo-50 dark:hover:brightness-105 active:scale-95 transition-all">
               <Play size={16} fill="currentColor" />
               {timerRunning ? `${t("টাইমারে ফিরে যাও", "Back to timer")} · ${formatTime(timeLeft)}` : t("ফোকাস শুরু করো", "Start focus")}
             </button>
-            {!timerRunning && <span className="text-xs font-semibold text-white/70">{n(Math.round(initialDuration / 60))} {t("মিনিট", "min")}</span>}
+            {!timerRunning && <span className="text-xs font-semibold text-slate-400 dark:text-white/70">{n(Math.round(initialDuration / 60))} {t("মিনিট", "min")}</span>}
           </div>
         </div>
       </div>
 
-      {/* আজকের হিসাব */}
-      <div className="bg-white dark:bg-[#1e293b]/60 border border-slate-200/80 dark:border-white/5 rounded-3xl p-4 shadow-sm">
-        <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-white/5">
-          {[[t("বাকি কাজ", "To do"), n(todayTasks.length)], [t("আনুমানিক", "Estimated"), dur(todayEstimatedTime)], [t("আজ শেষ", "Done today"), n(doneToday)]].map(([label, value]) => (
-            <div key={label} className="text-center px-1">
-              <p className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">{value}</p>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">{label}</p>
+      {/* আজকের হিসাব: বাঁয়ে লক্ষ্যের গোল, ডানে streak আর কাজের হিসাব */}
+      {(() => {
+        const pct = Math.min(1, todayMinutes / dailyGoal);
+        const R = 34, C = 2 * Math.PI * R;
+        return (
+          <div className="surface rounded-3xl p-4 flex items-center gap-4">
+            <button onClick={nextGoal} aria-label={t("আজকের লক্ষ্য বদলাও", "Change today's goal")} className="press relative w-[88px] h-[88px] shrink-0">
+              <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                <defs>
+                  <linearGradient id="goalGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#a855f7" /></linearGradient>
+                </defs>
+                <circle cx="40" cy="40" r={R} fill="none" strokeWidth="7" className="stroke-slate-100 dark:stroke-white/[0.07]" />
+                {/* লাইটে হালকা বেগুনি (indigo-400), ডার্কে বেগুনি গ্রেডিয়েন্ট */}
+                <circle cx="40" cy="40" r={R} fill="none" strokeWidth="7" strokeLinecap="round" className="stroke-indigo-400 dark:hidden"
+                  strokeDasharray={C} strokeDashoffset={C * (1 - pct)} style={{ transition: 'stroke-dashoffset 900ms cubic-bezier(.2,.8,.2,1)' }} />
+                <circle cx="40" cy="40" r={R} fill="none" strokeWidth="7" strokeLinecap="round" stroke="url(#goalGrad)" className="hidden dark:block"
+                  strokeDasharray={C} strokeDashoffset={C * (1 - pct)} style={{ transition: 'stroke-dashoffset 900ms cubic-bezier(.2,.8,.2,1)' }} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+                <span className="text-[17px] font-extrabold text-slate-900 dark:text-white tabular-nums">{pct >= 1 ? '🎉' : `${n(Math.round(pct * 100))}%`}</span>
+                <span className="text-[9px] font-bold text-slate-400 mt-1">{n(todayMinutes)}/{n(dailyGoal)} {t("মি", "m")}</span>
+              </div>
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[13px] font-extrabold text-slate-900 dark:text-white">{t("আজকের লক্ষ্য", "Today's goal")}</p>
+                <span className={`flex items-center gap-1 text-[11px] font-extrabold px-2 py-1 rounded-full ${streak > 0 ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300' : 'bg-slate-100 text-slate-400 dark:bg-white/5'}`}>
+                  🔥 {n(streak)}{streakCapped ? '+' : ''} {t("দিন", streak === 1 ? "day" : "days")}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">{pct >= 1 ? t("লক্ষ্য পূরণ! দারুণ", "Goal reached, great job!") : t(`আর ${dur(Math.max(0, dailyGoal - todayMinutes))} বাকি · গোলে চাপলে লক্ষ্য বদলাবে`, `${dur(Math.max(0, dailyGoal - todayMinutes))} to go · tap the ring to change`)}</p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {[[t("বাকি", "To do"), n(todayTasks.length)], [t("আনুমানিক", "Est."), dur(todayEstimatedTime)], [t("শেষ", "Done"), n(doneToday)]].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-slate-50 dark:bg-white/[0.04] px-2 py-1.5 text-center">
+                    <p className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100 tabular-nums truncate">{value}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="mt-4 h-1.5 rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700" style={{ width: `${Math.round(dayProgress * 100)}%` }} />
-        </div>
-        <p className="text-[11px] text-slate-400 mt-2">{t(`আজকের কাজের ${n(Math.round(dayProgress * 100))}% শেষ`, `${Math.round(dayProgress * 100)}% of today's tasks done`)}</p>
-      </div>
+          </div>
+        );
+      })()}
 
       {/* আজকের কাজ */}
       <div>
@@ -707,19 +760,36 @@ export default function PomodoroPage() {
         </div>
         <div className="relative mb-3">
           <Plus size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={quickNewTaskTitle} onChange={(e) => setQuickNewTaskTitle(e.target.value)} onKeyDown={handleQuickAddTask}
+          <input ref={quickAddRef} value={quickNewTaskTitle} onChange={(e) => setQuickNewTaskTitle(e.target.value)} onKeyDown={handleQuickAddTask}
             placeholder={t("নতুন কাজ লিখে Enter চাপো", "Type a task and press Enter")} enterKeyHint="done"
-            className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-white dark:bg-[#1e293b]/60 border border-slate-200/80 dark:border-white/5 text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:border-indigo-400 shadow-sm" />
+            className="surface w-full pl-11 pr-4 py-3.5 rounded-2xl text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400 outline-none focus:!border-indigo-400" />
         </div>
         <div className="space-y-2.5">
           {todayTasks.length === 0
-            ? <p className="text-center text-sm text-slate-400 py-6">{t("আজকের জন্য কোনো কাজ নেই। উপরে লিখে যোগ করো।", "Nothing for today yet. Add one above.")}</p>
+            ? (
+              <div className="rounded-3xl border-2 border-dashed border-slate-200 dark:border-white/10 px-6 py-8 flex flex-col items-center text-center">
+                {/* ছোট ছবি: দুটো কার্ড আর একটা টমেটো */}
+                <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden>
+                  <rect x="18" y="14" width="58" height="40" rx="10" className="fill-slate-100 dark:fill-white/5" transform="rotate(-8 47 34)" />
+                  <rect x="22" y="18" width="58" height="40" rx="10" className="fill-white stroke-slate-200 dark:fill-slate-800 dark:stroke-white/10" strokeWidth="1.5" />
+                  <rect x="32" y="30" width="26" height="5" rx="2.5" className="fill-slate-200 dark:fill-white/10" />
+                  <rect x="32" y="40" width="38" height="5" rx="2.5" className="fill-slate-100 dark:fill-white/5" />
+                  <circle cx="74" cy="20" r="11" fill="#fb7185" />
+                  <path d="M70 11c2 2 6 2 8 0" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+                <p className="mt-3 text-sm font-extrabold text-slate-800 dark:text-slate-100">{t("আজকের তালিকা ফাঁকা", "Your day is open")}</p>
+                <p className="text-xs text-slate-400 mt-1">{t("ছোট একটা কাজ দিয়ে শুরু করো, তারপর ২৫ মিনিট মন দাও।", "Start with one small task, then focus for 25 minutes.")}</p>
+                <button onClick={() => quickAddRef.current?.focus()} className="press mt-4 text-xs font-extrabold text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 px-4 py-2 rounded-full">
+                  + {t("প্রথম কাজ যোগ করো", "Add your first task")}
+                </button>
+              </div>
+            )
             : todayTasks.slice(0, 3).map(renderTaskItem)}
         </div>
       </div>
 
       {/* বাকি তালিকা */}
-      <div className="bg-white dark:bg-[#1e293b]/60 border border-slate-200/80 dark:border-white/5 rounded-3xl overflow-hidden shadow-sm divide-y divide-slate-100 dark:divide-white/5">
+      <div className="surface rounded-3xl overflow-hidden divide-y divide-slate-100 dark:divide-white/5">
         {listRow(<Calendar size={18} />, "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400", t("এই সপ্তাহ", "This Week"), weekData.rangeStr, thisWeekTasks.length, () => openTasks("This Week"))}
         {listRow(<CalendarDays size={18} />, "bg-teal-50 text-teal-500 dark:bg-teal-500/10 dark:text-teal-400", t("পরিকল্পিত", "Planned"), t(`${weekData.endStr} এর পরে`, `After ${weekData.endStr}`), plannedTasks.length, () => openTasks("Planned"))}
         {listRow(<CheckCircle2 size={18} />, "bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-400", t("শেষ হয়েছে", "Completed"), t("যা শেষ করেছ", "Everything you finished"), completedTasksList.length, () => openTasks("Completed"))}
@@ -805,16 +875,39 @@ export default function PomodoroPage() {
   const pickMode = (m: TimerMode) => { if (!isActive && !isPausedState && m !== mode) changeMode(m); };
   const skipBreak = () => changeMode('pomodoro');
   const closeTimer = () => setCurrentScreen('home');
-  const roundBtn = "w-14 h-14 rounded-full flex items-center justify-center bg-white/80 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10 active:scale-90 transition-all shadow-sm";
+  const roundBtn = "w-14 h-14 rounded-full flex items-center justify-center bg-white/60 dark:bg-white/[0.06] backdrop-blur-xl border border-white/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/10 active:scale-90 transition-all shadow-[0_8px_24px_-12px_rgba(15,23,42,0.25)] dark:shadow-none";
+
+  // পোমোডোরো শেষ: কনফেটি আর ছোট কার্ড (চাপলে সরে যায়)
+  const CONFETTI = ["#6366f1", "#a855f7", "#f59e0b", "#10b981", "#ec4899", "#0ea5e9"];
+  const renderCelebration = () => (
+    <div className="fixed inset-0 z-[80] pointer-events-none overflow-hidden" aria-live="polite">
+      {Array.from({ length: 42 }, (_, i) => (
+        <span key={i} className="motion-safe-only absolute top-0 w-2 h-3 rounded-[2px]"
+          style={{ left: `${(i * 37) % 100}%`, background: CONFETTI[i % CONFETTI.length], animation: `confetti-fall ${2.2 + (i % 5) * 0.25}s cubic-bezier(.2,.6,.4,1) ${(i % 7) * 0.06}s forwards`,
+            ['--dx' as string]: `${((i * 53) % 120) - 60}px`, ['--rot' as string]: `${(i % 2 ? 1 : -1) * (360 + i * 25)}deg` } as React.CSSProperties} />
+      ))}
+      <div className="absolute inset-x-0 top-[22%] flex justify-center">
+        <button onClick={() => setCelebrate(false)} className="pointer-events-auto rounded-3xl px-6 py-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white dark:border-white/10 shadow-2xl text-center" style={{ animation: 'pop-in 450ms cubic-bezier(.2,.8,.2,1)' }}>
+          <p className="text-3xl">🍅</p>
+          <p className="mt-1 text-base font-extrabold text-slate-900 dark:text-white">{t("একটা পোমোডোরো শেষ!", "Pomodoro complete!")}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t("দারুণ মনোযোগ। এবার একটু বিরতি।", "Great focus. Time for a short break.")}</p>
+        </button>
+      </div>
+    </div>
+  );
 
   const renderTimerScreen = () => (
     <div className="fixed inset-0 z-[60] flex flex-col items-center overflow-hidden bg-slate-50 dark:bg-[#0b1120] pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] animate-in fade-in zoom-in-95 duration-300">
-      {/* পেছনের রঙিন আভা, ধরন অনুযায়ী */}
-      <div className={`absolute -top-32 left-1/2 -translate-x-1/2 w-[34rem] h-[34rem] rounded-full blur-3xl pointer-events-none transition-colors duration-700 ${ms.glow} ${isActive ? 'opacity-100' : 'opacity-60'}`} />
+      {/* পেছনের আলো: ধরনের দুই রঙে দুটো ঝাপসা আলো ধীরে ঘোরে, চলার সময় একটু বেশি উজ্জ্বল */}
+      <div aria-hidden className={`absolute inset-0 pointer-events-none transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-60'}`}>
+        <div className="motion-safe-only absolute -top-40 -left-24 w-[30rem] h-[30rem] rounded-full blur-3xl opacity-30 dark:opacity-25 transition-colors duration-1000" style={{ background: ms.from, animation: 'drift-a 18s ease-in-out infinite' }} />
+        <div className="motion-safe-only absolute -bottom-48 -right-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-25 dark:opacity-20 transition-colors duration-1000" style={{ background: ms.to, animation: 'drift-b 22s ease-in-out infinite' }} />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(248,250,252,0.6)_100%)] dark:bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(11,17,32,0.7)_100%)]" />
+      </div>
 
       <div className="relative w-full max-w-md px-5 flex items-center justify-between gap-3">
         <button onClick={closeTimer} aria-label={t("ছোট করো", "Minimize")} className="p-2.5 rounded-full text-slate-500 dark:text-white/60 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors"><ChevronDown size={24} /></button>
-        <button onClick={() => setShowTaskSelector(true)} className="min-w-0 flex-1 max-w-[240px] bg-white/80 dark:bg-white/[0.06] backdrop-blur-md border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-full flex items-center justify-center gap-2 text-slate-800 dark:text-white shadow-sm transition-colors">
+        <button onClick={() => setShowTaskSelector(true)} className="press min-w-0 flex-1 max-w-[240px] bg-white/60 dark:bg-white/[0.06] backdrop-blur-xl border border-white/80 dark:border-white/10 px-4 py-2.5 rounded-full flex items-center justify-center gap-2 text-slate-800 dark:text-white shadow-sm transition-colors">
           <span className={`w-2 h-2 shrink-0 rounded-full ${isActive ? 'animate-pulse' : 'opacity-50'}`} style={{ background: ms.from }} />
           <span className="text-[13px] font-semibold truncate">{activeTask ? activeTask.title : t("কাজ বাছাই করো", "Select a task")}</span>
           <ChevronDown size={14} className="shrink-0 text-slate-400" />
@@ -823,24 +916,35 @@ export default function PomodoroPage() {
       </div>
 
       {/* ফোকাস / ছোট বিরতি / লম্বা বিরতি: চলার সময় বদলানো যায় না */}
-      <div className="relative mt-5 p-1 rounded-2xl bg-slate-200/60 dark:bg-white/[0.05] flex gap-1">
-        {(Object.keys(MODE_STYLE) as TimerMode[]).map((m) => {
-          const locked = (isActive || isPausedState) && m !== mode;
-          return (
-            <button key={m} onClick={() => pickMode(m)} disabled={locked}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${m === mode ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'} ${locked ? 'opacity-40' : ''}`}>
-              {MODE_STYLE[m].label}
-            </button>
-          );
-        })}
-      </div>
+      {(() => {
+        const modes = Object.keys(MODE_STYLE) as TimerMode[];
+        const idx = modes.indexOf(mode);
+        return (
+          <div className="relative mt-5 p-1 rounded-2xl bg-white/50 dark:bg-white/[0.05] backdrop-blur-xl border border-white/70 dark:border-white/5 grid grid-cols-3 w-[min(88vw,330px)]">
+            {/* বাছা ধরনের পেছনে সাদা পিল, অন্যটায় গেলে মসৃণভাবে সরে */}
+            <span aria-hidden className="absolute top-1 bottom-1 left-1 rounded-xl bg-white dark:bg-white/10 shadow-sm transition-transform duration-300 ease-out"
+              style={{ width: 'calc((100% - 0.5rem) / 3)', transform: `translateX(${idx * 100}%)` }} />
+            {modes.map((m) => {
+              const locked = (isActive || isPausedState) && m !== mode;
+              return (
+                <button key={m} onClick={() => { tap(); pickMode(m); }} disabled={locked}
+                  className={`relative py-1.5 rounded-xl text-xs font-bold transition-colors ${m === mode ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'} ${locked ? 'opacity-40' : ''}`}>
+                  {MODE_STYLE[m].label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <div
         className={`relative my-auto w-[min(80vw,340px)] aspect-square select-none touch-pan-y ${isInitialState ? 'cursor-ew-resize' : ''}`}
         onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
         onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
       >
-        <svg viewBox={`0 0 ${svgSize} ${svgSize}`} className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none overflow-visible">
+        {/* রিংয়ের ভেতরে হালকা কাচের গোল */}
+        <div aria-hidden className="absolute inset-[14%] rounded-full bg-white/40 dark:bg-white/[0.025] backdrop-blur-sm border border-white/60 dark:border-white/[0.04]" />
+        <svg viewBox={`0 0 ${svgSize} ${svgSize}`} className="motion-safe-only absolute inset-0 w-full h-full -rotate-90 pointer-events-none overflow-visible" style={isActive ? { animation: 'breathe 4s ease-in-out infinite' } : undefined}>
           <defs>
             <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor={ms.from} />
@@ -879,9 +983,9 @@ export default function PomodoroPage() {
 
       {/* শুরুর আগে সময় কমানো/বাড়ানো (রিংয়ে আঙুল সরিয়েও হয়) */}
       <div className={`relative flex items-center gap-3 mb-6 transition-opacity ${isInitialState ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <button onClick={() => adjustTime(-5 * 60)} className="px-4 py-2 rounded-full text-sm font-bold bg-white/80 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 active:scale-95 transition-all">−{n(5)}</button>
+        <button onClick={() => adjustTime(-5 * 60)} className="px-4 py-2 rounded-full text-sm font-bold bg-white/60 dark:bg-white/[0.06] backdrop-blur-xl border border-white/80 dark:border-white/10 text-slate-600 dark:text-slate-300 active:scale-95 transition-all">−{n(5)}</button>
         <span className="text-[11px] font-medium text-slate-400">{t("মিনিট বদলাও", "Adjust minutes")}</span>
-        <button onClick={() => adjustTime(5 * 60)} className="px-4 py-2 rounded-full text-sm font-bold bg-white/80 dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 active:scale-95 transition-all">+{n(5)}</button>
+        <button onClick={() => adjustTime(5 * 60)} className="px-4 py-2 rounded-full text-sm font-bold bg-white/60 dark:bg-white/[0.06] backdrop-blur-xl border border-white/80 dark:border-white/10 text-slate-600 dark:text-slate-300 active:scale-95 transition-all">+{n(5)}</button>
       </div>
 
       <div className="relative w-full max-w-xs flex items-center justify-between px-4">
@@ -889,7 +993,7 @@ export default function PomodoroPage() {
           ? <button onClick={() => setShowStopModal(true)} aria-label={t("বন্ধ করো", "Stop")} className={roundBtn}><Square size={18} fill="currentColor" /></button>
           : <button onClick={closeTimer} aria-label={t("বন্ধ করো", "Close")} className={roundBtn}><X size={20} /></button>}
 
-        <button onClick={startOrPause} aria-label={isActive ? t("থামাও", "Pause") : t("শুরু করো", "Start")}
+        <button onClick={() => { tap(12); startOrPause(); }} aria-label={isActive ? t("থামাও", "Pause") : t("শুরু করো", "Start")}
           className="relative w-20 h-20 rounded-full flex items-center justify-center text-white active:scale-90 hover:scale-105 transition-transform"
           style={{ background: `linear-gradient(135deg, ${ms.from}, ${ms.to})`, boxShadow: `0 14px 34px -10px ${ms.from}` }}>
           {isActive && <span className="absolute inset-0 rounded-full animate-ping opacity-20" style={{ background: ms.from }} />}
@@ -903,6 +1007,7 @@ export default function PomodoroPage() {
       <p className="relative mt-3 h-4 text-[11px] font-semibold text-slate-400">
         {isInitialState ? (mode === 'pomodoro' ? t("শুরু চাপো, ফোন সরিয়ে রাখো", "Press start and put your phone away") : t("একটু হাঁটো, পানি খাও", "Stretch and drink some water")) : isPausedState ? t("চালিয়ে যেতে চাপো", "Tap to continue") : ""}
       </p>
+      {celebrate && renderCelebration()}
     </div>
   );
 
@@ -911,13 +1016,13 @@ export default function PomodoroPage() {
       {isAddingTask && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center px-4 animate-in fade-in duration-200">
           <div className="fixed inset-0" onClick={() => setIsAddingTask(false)} />
-          <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-lg rounded-3xl p-5 shadow-2xl animate-in zoom-in-95 duration-300 relative z-10 border border-slate-200 dark:border-white/5">
+          <div className="bg-white dark:bg-[#1e293b] w-full max-w-lg rounded-3xl p-5 shadow-2xl animate-in zoom-in-95 duration-300 relative z-10 border border-slate-200 dark:border-white/5">
             <div className="flex justify-between items-center mb-5 ml-2">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t("নতুন কাজ", "Create New Task")}</h3>
-              <button onClick={() => setIsAddingTask(false)} className="p-2 bg-slate-100 dark:bg-[#2c2c2e] rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"><X size={18} /></button>
+              <button onClick={() => setIsAddingTask(false)} className="p-2 bg-slate-100 dark:bg-[#2a3850] rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"><X size={18} /></button>
             </div>
 
-            <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#2c2c2e] p-3.5 rounded-xl border border-slate-200 dark:border-white/5 mb-4">
+            <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#2a3850] p-3.5 rounded-xl border border-slate-200 dark:border-white/5 mb-4">
               <Circle size={20} className="text-slate-400 shrink-0" />
               <input autoFocus type="text" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitNewTask()} placeholder={t("কী পড়বে?", "What are you working on?")} className="w-full bg-transparent outline-none text-base font-medium text-slate-900 dark:text-white placeholder-slate-400" />
             </div>
@@ -925,8 +1030,8 @@ export default function PomodoroPage() {
             <div className="flex flex-wrap gap-2 mb-4 px-1">
               <span className="text-[10px] font-bold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 px-2 py-1 rounded-md flex items-center gap-1">🍅 {n(estimatedPomos)}</span>
               {addDate !== "Today" && <span className="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-md">{listLabel(addDate)}</span>}
-              {addPriority > 0 && <span className={`text-[10px] font-bold bg-slate-100 dark:bg-[#3a3a3c] px-2 py-1 rounded-md ${getPriorityColor(addPriority)}`}>{getPriorityLabel(addPriority)}</span>}
-              {addCategory !== "HSC" && <span className="text-[10px] font-bold bg-slate-100 dark:bg-[#3a3a3c] text-slate-400 px-2 py-1 rounded-md">{addCategory}</span>}
+              {addPriority > 0 && <span className={`text-[10px] font-bold bg-slate-100 dark:bg-[#3a4a63] px-2 py-1 rounded-md ${getPriorityColor(addPriority)}`}>{getPriorityLabel(addPriority)}</span>}
+              {addCategory !== "HSC" && <span className="text-[10px] font-bold bg-slate-100 dark:bg-[#3a4a63] text-slate-400 px-2 py-1 rounded-md">{addCategory}</span>}
             </div>
 
             <div className="bg-slate-50 dark:bg-black/20 rounded-2xl p-4 h-24 mb-5 border border-slate-100 dark:border-white/5 flex items-center justify-center">
@@ -935,7 +1040,7 @@ export default function PomodoroPage() {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">{t("কয়টা পোমোডোরো লাগবে", "Estimated Pomodoros")}</p>
                   <div className="flex justify-center gap-2 overflow-x-auto scrollbar-hide px-2">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
-                      <button key={num} onClick={() => setEstimatedPomos(num)} className={`shrink-0 w-10 h-10 rounded-full font-bold text-sm transition-all ${estimatedPomos === num ? 'bg-red-500 text-white shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{n(num)}</button>
+                      <button key={num} onClick={() => setEstimatedPomos(num)} className={`shrink-0 w-10 h-10 rounded-full font-bold text-sm transition-all ${estimatedPomos === num ? 'bg-red-500 text-white shadow-md' : 'bg-white dark:bg-[#3a4a63] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{n(num)}</button>
                     ))}
                   </div>
                 </div>
@@ -943,22 +1048,22 @@ export default function PomodoroPage() {
               {addTab === 'date' && (
                 <div className="w-full flex justify-center gap-2 animate-in fade-in zoom-in-95 duration-200">
                   {["Today", "Tomorrow", "This Week", "Planned"].map(option => (
-                    <button key={option} onClick={() => setAddDate(option)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${addDate === option ? 'bg-indigo-500 text-white shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{listLabel(option)}</button>
+                    <button key={option} onClick={() => setAddDate(option)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${addDate === option ? 'bg-indigo-500 text-white shadow-md' : 'bg-white dark:bg-[#3a4a63] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{listLabel(option)}</button>
                   ))}
                 </div>
               )}
               {addTab === 'priority' && (
                 <div className="w-full flex justify-center gap-3 animate-in fade-in zoom-in-95 duration-200">
-                  <button onClick={() => setAddPriority(3)} className={`p-3 rounded-xl transition-all ${addPriority===3 ? 'bg-red-500 text-white shadow-md':'bg-white dark:bg-[#3a3a3c] text-red-500 border border-slate-200 dark:border-white/5'}`}><Flag size={18}/></button>
-                  <button onClick={() => setAddPriority(2)} className={`p-3 rounded-xl transition-all ${addPriority===2 ? 'bg-orange-500 text-white shadow-md':'bg-white dark:bg-[#3a3a3c] text-orange-500 border border-slate-200 dark:border-white/5'}`}><Flag size={18}/></button>
-                  <button onClick={() => setAddPriority(1)} className={`p-3 rounded-xl transition-all ${addPriority===1 ? 'bg-blue-500 text-white shadow-md':'bg-white dark:bg-[#3a3a3c] text-blue-500 border border-slate-200 dark:border-white/5'}`}><Flag size={18}/></button>
-                  <button onClick={() => setAddPriority(0)} className={`p-3 rounded-xl transition-all ${addPriority===0 ? 'bg-slate-500 text-white shadow-md':'bg-white dark:bg-[#3a3a3c] text-slate-400 border border-slate-200 dark:border-white/5'}`}><X size={18}/></button>
+                  <button onClick={() => setAddPriority(3)} className={`p-3 rounded-xl transition-all ${addPriority===3 ? 'bg-red-500 text-white shadow-md':'bg-white dark:bg-[#3a4a63] text-red-500 border border-slate-200 dark:border-white/5'}`}><Flag size={18}/></button>
+                  <button onClick={() => setAddPriority(2)} className={`p-3 rounded-xl transition-all ${addPriority===2 ? 'bg-orange-500 text-white shadow-md':'bg-white dark:bg-[#3a4a63] text-orange-500 border border-slate-200 dark:border-white/5'}`}><Flag size={18}/></button>
+                  <button onClick={() => setAddPriority(1)} className={`p-3 rounded-xl transition-all ${addPriority===1 ? 'bg-blue-500 text-white shadow-md':'bg-white dark:bg-[#3a4a63] text-blue-500 border border-slate-200 dark:border-white/5'}`}><Flag size={18}/></button>
+                  <button onClick={() => setAddPriority(0)} className={`p-3 rounded-xl transition-all ${addPriority===0 ? 'bg-slate-500 text-white shadow-md':'bg-white dark:bg-[#3a4a63] text-slate-400 border border-slate-200 dark:border-white/5'}`}><X size={18}/></button>
                 </div>
               )}
               {addTab === 'tag' && (
                 <div className="w-full flex justify-center gap-2 flex-wrap animate-in fade-in zoom-in-95 duration-200">
                   {CATEGORIES.map(cat => (
-                    <button key={cat} onClick={() => setAddCategory(cat)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${addCategory === cat ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-md' : 'bg-white dark:bg-[#3a3a3c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{cat}</button>
+                    <button key={cat} onClick={() => setAddCategory(cat)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${addCategory === cat ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-md' : 'bg-white dark:bg-[#3a4a63] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5'}`}>{cat}</button>
                   ))}
                 </div>
               )}
@@ -966,10 +1071,10 @@ export default function PomodoroPage() {
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-white/5">
               <div className="flex items-center gap-2 mt-4">
-                <button onClick={() => setAddTab('pomo')} className={`p-3 rounded-xl transition-colors ${addTab === 'pomo' ? 'bg-red-50 dark:bg-red-500/20 text-red-500' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2c2c2e]'}`}><Circle size={20}/></button>
-                <button onClick={() => setAddTab('date')} className={`p-3 rounded-xl transition-colors ${addTab === 'date' ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-500' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2c2c2e]'}`}><Calendar size={20}/></button>
-                <button onClick={() => setAddTab('priority')} className={`p-3 rounded-xl transition-colors ${addTab === 'priority' ? 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-900 dark:text-white' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2c2c2e]'}`}><Flag size={20}/></button>
-                <button onClick={() => setAddTab('tag')} className={`p-3 rounded-xl transition-colors ${addTab === 'tag' ? 'bg-slate-100 dark:bg-[#3a3a3c] text-slate-900 dark:text-white' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2c2c2e]'}`}><Tag size={20}/></button>
+                <button onClick={() => setAddTab('pomo')} className={`p-3 rounded-xl transition-colors ${addTab === 'pomo' ? 'bg-red-50 dark:bg-red-500/20 text-red-500' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2a3850]'}`}><Circle size={20}/></button>
+                <button onClick={() => setAddTab('date')} className={`p-3 rounded-xl transition-colors ${addTab === 'date' ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-500' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2a3850]'}`}><Calendar size={20}/></button>
+                <button onClick={() => setAddTab('priority')} className={`p-3 rounded-xl transition-colors ${addTab === 'priority' ? 'bg-slate-100 dark:bg-[#3a4a63] text-slate-900 dark:text-white' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2a3850]'}`}><Flag size={20}/></button>
+                <button onClick={() => setAddTab('tag')} className={`p-3 rounded-xl transition-colors ${addTab === 'tag' ? 'bg-slate-100 dark:bg-[#3a4a63] text-slate-900 dark:text-white' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2a3850]'}`}><Tag size={20}/></button>
               </div>
               <button onClick={submitNewTask} className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-indigo-500/30 font-bold text-sm transition-transform active:scale-95 flex items-center gap-2">
                 {t("রাখো", "Save Task")} <Send size={16} />
@@ -1158,7 +1263,7 @@ export default function PomodoroPage() {
       {showTaskSelector && (
         <div className="fixed inset-0 z-[150] flex items-start justify-center pt-[calc(6rem+env(safe-area-inset-top))] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 px-5">
           <div className="fixed inset-0" onClick={() => setShowTaskSelector(false)} />
-          <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-100 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[60vh] relative z-10">
+          <div className="bg-white dark:bg-[#1e293b] w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-100 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col max-h-[60vh] relative z-10">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-base font-semibold text-slate-900 dark:text-white ml-1">{t("কাজ বাছাই করো", "Select Task")}</h3>
               <button onClick={() => setShowTaskSelector(false)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10 transition-colors rounded-full"><X size={18} /></button>
@@ -1189,7 +1294,7 @@ export default function PomodoroPage() {
 
       {showStopModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm px-5">
-          <div className="bg-white dark:bg-[#1c1c1e] w-full max-w-xs rounded-3xl p-6 shadow-2xl animate-in zoom-in-95">
+          <div className="bg-white dark:bg-[#1e293b] w-full max-w-xs rounded-3xl p-6 shadow-2xl animate-in zoom-in-95">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white text-center mb-6">{mode === 'pomodoro' ? t("ফোকাস সেশন বন্ধ করবে?", "Stop this focus session?") : t("বিরতি বন্ধ করবে?", "End this break?")}</h3>
             {mode === 'pomodoro' && <p className="-mt-4 mb-6 text-center text-xs text-slate-500">{t("১ মিনিটের বেশি পড়ে থাকলে সেটুকু হিসাবে থাকবে।", "If you focused for over a minute, that time is still counted.")}</p>}
             <div className="flex items-center gap-3">

@@ -134,7 +134,7 @@ export default function CommunityPage() {
               <div
                 key={group.id}
                 onClick={() => setActiveGroup(group)}
-                className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm cursor-pointer hover:border-indigo-500/50 transition-all hover:scale-[1.01] animate-in fade-in slide-in-from-bottom-4"
+                className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm cursor-pointer hover:border-indigo-500/50 transition-all hover:scale-[1.01] animate-in fade-in slide-in-from-bottom-4"
                 style={{ animationDelay: `${idx * 100}ms` }}
               >
                 <div className="flex items-start gap-4">
@@ -145,7 +145,7 @@ export default function CommunityPage() {
                     <h3 className="text-base font-bold text-slate-800 dark:text-white mb-1">{group.name}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{desc(group)}</p>
                   </div>
-                  <div className="bg-slate-100 dark:bg-[#2c2c2e] text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0">
+                  <div className="bg-slate-100 dark:bg-[#2a3850] text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0">
                     {t("খোলো", "Open")}
                   </div>
                 </div>
@@ -162,7 +162,7 @@ export default function CommunityPage() {
     <div className="w-full h-[calc(100dvh-env(safe-area-inset-bottom))] flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative">
 
       {/* Chat Header */}
-      <div className="px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between bg-white dark:bg-[#1c1c1e] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
+      <div className="px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
         <div className="flex items-center gap-3">
           <button onClick={() => setActiveGroup(null)} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
             <ArrowLeft size={24} />
@@ -226,7 +226,7 @@ export default function CommunityPage() {
                     className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
                       isMe
                         ? 'bg-indigo-600 text-white rounded-tr-sm'
-                        : 'bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-200 rounded-tl-sm'
+                        : 'bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-200 rounded-tl-sm'
                     }`}
                   >
                     {msg.text}
@@ -245,14 +245,14 @@ export default function CommunityPage() {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white dark:bg-[#1c1c1e] border-t border-slate-200 dark:border-white/5 p-4 shrink-0 z-30">
+      <div className="bg-white dark:bg-[#1e293b] border-t border-slate-200 dark:border-white/5 p-4 shrink-0 z-30">
         {!currentUser ? (
           <div className="text-center p-3 bg-red-50 dark:bg-red-500/10 rounded-xl text-red-500 text-sm font-bold">
             {t("চ্যাট করতে লগইন করো।", "Please log in to chat.")}
           </div>
         ) : (
           <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            <div className="flex-1 bg-slate-100 dark:bg-[#2c2c2e] rounded-full flex items-center px-4 py-1.5 border border-transparent focus-within:border-indigo-500/50 focus-within:bg-white dark:focus-within:bg-[#1c1c1e] transition-all">
+            <div className="flex-1 bg-slate-100 dark:bg-[#2a3850] rounded-full flex items-center px-4 py-1.5 border border-transparent focus-within:border-indigo-500/50 focus-within:bg-white dark:focus-within:bg-[#1e293b] transition-all">
               <input
                 type="text"
                 value={newMessage}
@@ -264,7 +264,7 @@ export default function CommunityPage() {
             <button
               type="submit"
               disabled={!newMessage.trim()}
-              className={`p-3 rounded-full shrink-0 transition-all ${newMessage.trim() ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 active:scale-95' : 'bg-slate-200 dark:bg-[#2c2c2e] text-slate-400 cursor-not-allowed'}`}
+              className={`p-3 rounded-full shrink-0 transition-all ${newMessage.trim() ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 active:scale-95' : 'bg-slate-200 dark:bg-[#2a3850] text-slate-400 cursor-not-allowed'}`}
             >
               <Send size={20} className={newMessage.trim() ? 'ml-0.5' : ''} />
             </button>

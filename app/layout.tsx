@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { Hind_Siliguri, Inter } from "next/font/google";
+import { Hind_Siliguri, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import AuthGate from "./components/shared/AuthGate";
 import { ThemeProvider } from "./components/shared/ThemeProvider";
@@ -11,10 +11,11 @@ import PwaRegistry from "./components/pwa/PwaRegistry";
 import OfflineBanner from "./components/pwa/OfflineBanner";
 import Onboarding from "./components/shared/Onboarding";
 import { AccountSheetProvider } from "./components/account/AccountSheet";
+import PageFade from "./components/shared/PageFade";
 import { LangProvider } from "@/lib/i18n";
 
-// ইংরেজি Inter, বাংলা Hind Siliguri (Inter এ বাংলা অক্ষর নেই, তাই পরেরটায় যায়)
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// ইংরেজি Plus Jakarta Sans (সংখ্যা আর শিরোনামে ঝকঝকে), বাংলা Hind Siliguri (প্রথমটায় বাংলা অক্ষর নেই, তাই পরেরটায় যায়)
+const inter = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-inter" });
 const bangla = Hind_Siliguri({ subsets: ["bengali"], weight: ["400", "500", "600", "700"], variable: "--font-bangla" });
 
 // Money অ্যাপের মতো: উপরের বারের রং ফোনের লাইট/ডার্ক অনুযায়ী
@@ -31,14 +32,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Pomodoro BD",
+  title: "Shonghi Focus",
   description: "Focus timer and study planner for students in Bangladesh",
-  applicationName: "Pomodoro BD",
+  applicationName: "Shonghi Focus",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",   // অ্যাপ স্ট্যাটাস বারের নিচ পর্যন্ত; হেডারের উপরের padding নচের জায়গা রাখে
-    title: "Pomodoro BD",
+    title: "Shonghi Focus",
   },
 };
 
@@ -65,7 +66,7 @@ export default function RootLayout({
             <OfflineBanner />
             
             <main className="flex-1">
-              {children}
+              <PageFade>{children}</PageFade>
             </main>
             
             <Onboarding />

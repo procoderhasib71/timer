@@ -22,6 +22,37 @@
   --foreground: #f8fafc;
 }
 
+/* কার্ডের একটাই নিয়ম: লাইটে সাদা আর নরম ছায়া, ডার্কে পেছনের চেয়ে একটু উজ্জ্বল slate আর পাতলা কিনারা */
+@utility surface {
+  background-color: #ffffff;
+  border: 1px solid rgb(226 232 240 / 0.8);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 32px -16px rgb(15 23 42 / 0.12);
+  @variant dark {
+    background-color: rgb(30 41 59 / 0.7);
+    border-color: rgb(255 255 255 / 0.06);
+    box-shadow: none;
+  }
+}
+
+/* চাপলে একটু দেবে যাওয়া */
+@utility press {
+  transition: transform 150ms ease, background-color 150ms ease, opacity 150ms ease;
+  &:active { transform: scale(0.97); }
+}
+
+/* টাইমারের পেছনের আলো ধীরে ঘোরে; চলার সময় রিং হালকা শ্বাস নেয়; পোমোডোরো শেষে কনফেটি */
+@keyframes drift-a { 0%, 100% { transform: translate(-10%, -6%) scale(1); } 50% { transform: translate(12%, 8%) scale(1.15); } }
+@keyframes drift-b { 0%, 100% { transform: translate(10%, 10%) scale(1.1); } 50% { transform: translate(-12%, -4%) scale(0.95); } }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.018); } }
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--dx), 105vh, 0) rotate(var(--rot)); opacity: 0.9; }
+}
+@keyframes pop-in { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.06); opacity: 1; } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe-only { animation: none !important; }
+}
+
 /* iOS Safari Top Bar Force Color */
 html, body {
   background-color: var(--background) !important;

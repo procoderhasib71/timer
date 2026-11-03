@@ -70,7 +70,7 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">{name}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sub || t("AdMCQ এর সাথে একই প্রোফাইল", "Same profile as AdMCQ")}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sub || t("Shonghi Lab অ্যাকাউন্ট", "Shonghi Lab account")}</p>
           </div>
           <button onClick={onClose} aria-label={t("বন্ধ করো", "Close")} className="p-2.5 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-300/70 dark:hover:bg-white/15 transition-colors active:scale-95">
             <X size={18} />
