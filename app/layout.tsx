@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",   // অ্যাপ স্ট্যাটাস বারের নিচ পর্যন্ত; নচের জায়গায় নিচের পট্টি
     title: "Pomodoro BD",
   },
 };
@@ -52,8 +52,10 @@ export default function RootLayout({
       <body className={`${inter.variable} ${bangla.variable} font-sans antialiased min-h-screen bg-[var(--background)] transition-colors`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <LangProvider>
+          {/* iPhone এর নচ/ঘড়ির পেছনে: স্ট্যাটাস বারের লেখা সাদা, তাই লাইট মোডে বেগুনি, ডার্কে অ্যাপের রং। নচ না থাকলে উচ্চতা ০ */}
+          <div aria-hidden className="fixed top-0 inset-x-0 z-[2000] h-[env(safe-area-inset-top)] bg-indigo-600 dark:bg-[#0f172a] pointer-events-none" />
           
-          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
             
             <AuthGate>
             <AccountSheetProvider>

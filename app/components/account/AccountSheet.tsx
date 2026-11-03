@@ -60,7 +60,7 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
     <div className="fixed inset-0 z-[200] flex items-end md:items-stretch md:justify-end" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
 
-      <div className="relative w-full md:w-[420px] h-[92dvh] md:h-full flex flex-col bg-slate-50 dark:bg-[#0f172a] rounded-t-[28px] md:rounded-none md:rounded-l-[28px] shadow-2xl border-t md:border-t-0 md:border-l border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:slide-in-from-right duration-300 pb-[env(safe-area-inset-bottom)]">
+      <div className="relative w-full md:w-[420px] h-[92dvh] md:h-full flex flex-col bg-slate-50 dark:bg-[#0f172a] rounded-t-[28px] md:rounded-none md:rounded-l-[28px] md:pt-[env(safe-area-inset-top)] shadow-2xl border-t md:border-t-0 md:border-l border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:slide-in-from-right duration-300 pb-[env(safe-area-inset-bottom)]">
         {/* টেনে নামানোর দাগ (শুধু ফোনে, দেখানোর জন্য) */}
         <div className="md:hidden mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-white/15" />
 

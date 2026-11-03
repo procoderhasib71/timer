@@ -213,7 +213,7 @@ export default function AnalyticsPage() {
     <div className="w-full min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 pb-32">
       
       {/* Header */}
-      <div className="px-5 pt-8 pb-4 flex items-center justify-between sticky top-0 bg-slate-50/80 dark:bg-[#0f172a]/80 backdrop-blur-md z-30">
+      <div className="px-5 pt-8 pb-4 flex items-center justify-between sticky top-[env(safe-area-inset-top)] bg-slate-50/80 dark:bg-[#0f172a]/80 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
           <Link href="/" className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
             <ArrowLeft size={24} />

@@ -106,7 +106,7 @@ export default function CommunityPage() {
   if (!activeGroup) {
     return (
       <div className="w-full min-h-[100dvh] bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300">
-        <div className="px-5 pt-8 pb-4 flex items-center justify-between sticky top-0 bg-slate-50/80 dark:bg-[#0f172a]/80 backdrop-blur-md z-30">
+        <div className="px-5 pt-8 pb-4 flex items-center justify-between sticky top-[env(safe-area-inset-top)] bg-slate-50/80 dark:bg-[#0f172a]/80 backdrop-blur-md z-30">
           <div className="flex items-center gap-3">
             <Link href="/" className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
               <ArrowLeft size={24} />
@@ -159,7 +159,7 @@ export default function CommunityPage() {
 
   // --- VIEW 2: ACTIVE CHAT ROOM ---
   return (
-    <div className="w-full h-[100dvh] flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative">
+    <div className="w-full h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative">
 
       {/* Chat Header */}
       <div className="px-4 py-4 flex items-center justify-between bg-white dark:bg-[#1c1c1e] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
@@ -245,7 +245,7 @@ export default function CommunityPage() {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white dark:bg-[#1c1c1e] border-t border-slate-200 dark:border-white/5 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shrink-0 z-30">
+      <div className="bg-white dark:bg-[#1c1c1e] border-t border-slate-200 dark:border-white/5 p-4 shrink-0 z-30">
         {!currentUser ? (
           <div className="text-center p-3 bg-red-50 dark:bg-red-500/10 rounded-xl text-red-500 text-sm font-bold">
             {t("চ্যাট করতে লগইন করো।", "Please log in to chat.")}

@@ -31,7 +31,7 @@ export default function TopHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-50 items-center justify-between px-5 py-3.5 bg-slate-50/80 dark:bg-[#0f172a]/80 backdrop-blur-md transition-colors duration-300 ${
+      className={`sticky top-[env(safe-area-inset-top)] z-50 items-center justify-between px-5 py-3.5 bg-slate-50/80 dark:bg-[#0f172a]/80 backdrop-blur-md transition-colors duration-300 ${
         hiddenPages.includes(pathname) ? "hidden" : "flex"
       }`}
     >
