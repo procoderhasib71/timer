@@ -12,10 +12,12 @@ function ThemeColorSync() {
   React.useEffect(() => {
     if (!resolvedTheme) return;
     const color = resolvedTheme === "dark" || pathname === "/login" ? "#0f172a" : "#f8fafc";
-    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
-      m.setAttribute("content", color);
-      m.removeAttribute("media");
-    });
+    // শুধু content বদলালে iPhone Safari অনেক সময় পুরনো রং রেখে দেয়; তাই পুরনো ট্যাগ সরিয়ে নতুন ট্যাগ বসাই
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove());
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    meta.content = color;
+    document.head.appendChild(meta);
   }, [resolvedTheme, pathname]);
   return null;
 }
