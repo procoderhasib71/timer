@@ -4,7 +4,7 @@ const withPWA = withPWAInit({
   dest: "public",
   register: true,
   cacheStartUrl: true,
-  dynamicStartUrl: false,
+  dynamicStartUrl: true,   // শুরুর পাতা আগে নেট থেকে (নতুন version সাথে সাথে), নেট না থাকলে cache থেকে
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
