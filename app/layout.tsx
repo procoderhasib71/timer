@@ -16,16 +16,14 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const bangla = Hind_Siliguri({ subsets: ["bengali"], weight: ["400", "500", "600", "700"], variable: "--font-bangla" });
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" }, // iOS Status Bar Match
-  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover", // Notch/Island সাপোর্ট
 };
+
+const THEME_COLOR_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches)||location.pathname==='/login';var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#0f172a':'#f8fafc');}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "Pomodoro BD",
@@ -48,6 +46,9 @@ export default function RootLayout({
     <html lang="bn" suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        {/* Safari উপরের বারের রং পাতা আঁকার আগেই নিয়ে নেয়; তাই ফোনের সেটিং নয়, অ্যাপের থিম (next-themes এর localStorage) দেখে এখানেই বসাই */}
+        <meta name="theme-color" content="#0f172a" />
+        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />
       </head>
       <body className={`${inter.variable} ${bangla.variable} font-sans antialiased min-h-screen bg-[var(--background)] transition-colors`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

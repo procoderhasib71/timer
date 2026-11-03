@@ -26,7 +26,7 @@ export default function BottomNav() {
       // ২. w-[92%] max-w-[400px] দিয়ে সাইড থেকে গ্যাপ রাখা হয়েছে ফ্লোটিং লুকের জন্য।
       // ৩. rounded-2xl দিয়ে কোণাগুলো সুন্দর গোল করা হয়েছে।
       // ৪. bg-white/30 এবং backdrop-blur-xl দিয়ে একদম ট্রান্সপারেন্ট গ্লাস ইফেক্ট দেওয়া হয়েছে।
-      className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[92%] max-w-[400px] z-50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 rounded-2xl shadow-lg shadow-slate-200/20 dark:shadow-black/40 ${
+      className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[92%] max-w-[400px] z-50 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-lg shadow-slate-200/20 dark:shadow-black/40 ${
         isAuthPage ? "hidden" : "block"
       }`}
     >

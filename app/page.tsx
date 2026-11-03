@@ -654,9 +654,12 @@ export default function PomodoroPage() {
       </div>
 
       {/* পরের কাজ */}
-      <div className="relative overflow-hidden rounded-[28px] p-5 text-white bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 shadow-xl shadow-indigo-500/25">
-        <div className="absolute -top-16 -right-12 w-48 h-48 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-10 w-44 h-44 rounded-full bg-violet-300/20 blur-2xl pointer-events-none" />
+      <div className="relative rounded-[28px] p-5 text-white bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 shadow-xl shadow-indigo-500/25">
+        {/* ঝাপসা আলো আলাদা ঘরে কেটে রাখি: Safari তে overflow-hidden এ blur গোল কোণের বাইরে চৌকো হয়ে দেখা যেত (ছায়াটা বাইরে থাকে) */}
+        <div className="absolute inset-0 rounded-[28px] overflow-hidden [clip-path:inset(0_round_28px)] pointer-events-none">
+          <div className="absolute -top-16 -right-12 w-48 h-48 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-20 -left-10 w-44 h-44 rounded-full bg-violet-300/20 blur-2xl" />
+        </div>
         <div className="relative">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider bg-white/15 px-2.5 py-1 rounded-full">
