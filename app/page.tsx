@@ -863,7 +863,8 @@ export default function PomodoroPage() {
 
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className={`text-[11px] font-extrabold uppercase tracking-[0.3em] ${ms.text}`}>{ms.label}</span>
-          <span className="mt-1 text-[clamp(3.6rem,18vw,5.2rem)] leading-none font-light tracking-tight tabular-nums text-slate-900 dark:text-white">{formatTime(timeLeft)}</span>
+          {/* এক ঘণ্টার বেশি হলে ঘণ্টার ঘর যোগ হয় (01:30:00), তখন লেখা ছোট করি যাতে গোলের ভেতরে থাকে */}
+          <span className={`mt-1 ${timeLeft >= 3600 ? "text-[clamp(2.6rem,12vw,3.6rem)]" : "text-[clamp(3.6rem,18vw,5.2rem)]"} leading-none font-light tracking-tight tabular-nums text-slate-900 dark:text-white`}>{formatTime(timeLeft)}</span>
           <span className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">{statusText}</span>
           {activeTask && mode === 'pomodoro' && (
             <div className="mt-3 flex gap-1.5" aria-label={t("লম্বা বিরতির আগে সেশন", "Sessions before long break")}>
