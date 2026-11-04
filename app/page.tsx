@@ -320,7 +320,9 @@ export default function PomodoroPage() {
           // বিরতি বন্ধ: সরাসরি পরের পোমোডোরো
           changeMode('pomodoro', (settings.autoStartNext ?? false) && !lateFinish.current);
         } else if (mode === 'pomodoro') {
-          const currentCount = (activeTask?.completedPomodoros || 0) + 1;
+          // টাস্ক থাকুক বা না থাকুক, এই ফোনে টানা কয়টা পোমোডোরো হলো সেটা গুনি (আগে টাস্ক ছাড়া লম্বা বিরতি কখনো আসত না)
+          const currentCount = (Number(localStorage.getItem('pomodoro_cycle_count')) || 0) + 1;
+          try { localStorage.setItem('pomodoro_cycle_count', String(currentCount)); } catch { /* প্রাইভেট মোড */ }
           const longBreakInterval = settings.longBreakInterval || 4;
           const nextMode = (currentCount % longBreakInterval === 0) ? 'longBreak' : 'shortBreak';
           const autoBreak = settings.autoStartBreak ?? true;
@@ -334,15 +336,9 @@ export default function PomodoroPage() {
     } 
   }, [timeLeft, userId, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const handleAppClose = () => {
-      const { timeLeft, isActive, initialDuration } = sessionState.current;
-      if (isActive || timeLeft < initialDuration) saveFocusSession(timeLeft, false);
-    };
-    window.addEventListener('beforeunload', handleAppClose);
-    window.addEventListener('pagehide', handleAppClose);
-    return () => { window.removeEventListener('beforeunload', handleAppClose); window.removeEventListener('pagehide', handleAppClose); };
-  }, [userId]);
+  // অ্যাপ বন্ধ/রিফ্রেশে আলাদা করে সেশন সেভ করি না: চলমান বা থামানো টাইমার localStorage থেকে ফিরে আসে,
+  // শেষ হলে বা Stop চাপলে তখনই একবার সেভ হয়। আগে এখানে সেভ করায় (beforeunload + pagehide দুটোতেই)
+  // একই সময় দুই-তিনবার গোনা হতো, লিডারবোর্ডেও।
 
   // ---- বটের সাথে একই টাইমার ----
   // timerSeen: বটের যে বদল পর্যন্ত দেখা বা নিজে পাঠানো হয়েছে (updated_at), তার পরেরটাই শুধু বসাই
