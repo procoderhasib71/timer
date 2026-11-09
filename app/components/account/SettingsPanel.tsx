@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { readSettings } from "@/lib/settings";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -74,7 +75,7 @@ export default function SettingsPanel() {
 
           localStorage.setItem("pomodoro_settings", JSON.stringify(fbSettings));
         } else {
-          const localSettings = JSON.parse(localStorage.getItem("pomodoro_settings") || "{}");
+          const localSettings = readSettings();
 
           if (localSettings.autoStartNext !== undefined) setAutoStartNext(localSettings.autoStartNext);
           if (localSettings.autoStartBreak !== undefined) setAutoStartBreak(localSettings.autoStartBreak);
@@ -102,7 +103,7 @@ export default function SettingsPanel() {
   // ✅ Updated UpdateSettings Logic
   const updateSetting = async (key: string, value: any) => {
     // 1. Save Locally
-    const currentSettings = JSON.parse(localStorage.getItem("pomodoro_settings") || "{}");
+    const currentSettings = readSettings();
     localStorage.setItem("pomodoro_settings", JSON.stringify({ ...currentSettings, [key]: value }));
 
     // 2. 🚨 FIRE EVENT SO TIMER UPDATES INSTANTLY

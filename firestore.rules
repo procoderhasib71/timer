@@ -24,11 +24,12 @@ service cloud.firestore {
     }
 
     // Pomodoro লিডারবোর্ড (board = সপ্তাহের শনিবারের তারিখ বা "all"): লগইন করা সবাই পড়বে, প্রত্যেকে শুধু নিজের ঘরে লিখবে।
-    // প্রথমবার আগের সেশন গুনে ঘর বানায়; পরে একবারে ৩ ঘণ্টার বেশি বাড়ানো বা কমানো যায় না। মোছা যায় না।
+    // নতুন ঘর বানানোর সময়ও ৩ ঘণ্টার (১৮০ মিনিট) বেশি দিয়ে শুরু করা যায় না (আগে ১০০০০০ পর্যন্ত যেত, তাতে এক লাফে ১ নম্বর হওয়া যেত);
+    // পরে একবারে ৩ ঘণ্টার বেশি বাড়ানো যায় না, কমানোও যায় না। মোছা যায় না। (lib/leaderboard.ts এর CREATE_MAX এর সাথে মিলিয়ে রাখো)
     match /leaderboards/{board}/users/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid && validEntry()
-        && (!('minutes' in request.resource.data) || request.resource.data.minutes <= 100000);
+        && request.resource.data.get('minutes', 0) <= 180;
       allow update: if request.auth != null && request.auth.uid == uid && validEntry()
         && request.resource.data.get('minutes', 0) >= resource.data.get('minutes', 0)
         && request.resource.data.get('minutes', 0) <= resource.data.get('minutes', 0) + 180;
