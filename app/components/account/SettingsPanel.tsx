@@ -31,6 +31,49 @@ interface ListItemProps {
 
 type ModalType = 'pomodoro' | 'shortBreak' | 'longBreak' | 'rounds' | 'ringtone' | null;
 
+// কম্পোনেন্টের বাইরে রাখা: ভেতরে থাকলে প্রতিবার render এ নতুন কম্পোনেন্ট হয়ে পুরো তালিকা নতুন করে বসত
+const ListItem = ({
+  icon: Icon, title, value, isToggle = false, toggleState = false, onToggle = () => {}, href = "", onClick
+}: ListItemProps) => {
+
+  const content = (
+    <div className="flex items-center justify-between py-3.5 px-2 group cursor-pointer rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+      <div className="flex items-center gap-4 pl-1">
+        <div className="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800/50 text-indigo-500 dark:text-indigo-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors">
+          <Icon size={18} />
+        </div>
+        <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">{title}</span>
+      </div>
+
+      <div className="flex items-center gap-3 pr-1">
+        {value !== undefined && <span className="text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-200/50 dark:bg-slate-800/50 px-3 py-1 rounded-lg capitalize">{value}</span>}
+
+        {isToggle ? (
+          <div
+            className={`w-12 h-7 rounded-full p-1 transition-all duration-300 ease-in-out flex items-center shadow-inner ${
+              toggleState ? "bg-indigo-500" : "bg-slate-300 dark:bg-slate-700"
+            }`}
+          >
+            <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out ${
+              toggleState ? "translate-x-5" : "translate-x-0"
+            }`} />
+          </div>
+        ) : (
+          <ChevronRight size={18} className="text-slate-400 dark:text-slate-600 group-hover:text-indigo-500 transition-colors" />
+        )}
+      </div>
+    </div>
+  );
+
+  if (href) return <Link href={href} className="block w-full">{content}</Link>;
+
+  return (
+    <div onClick={isToggle ? onToggle : onClick} className="block w-full">
+      {content}
+    </div>
+  );
+};
+
 export default function SettingsPanel() {
   const router = useRouter();
 
@@ -101,7 +144,7 @@ export default function SettingsPanel() {
   }, [router]);
 
   // ✅ Updated UpdateSettings Logic
-  const updateSetting = async (key: string, value: any) => {
+  const updateSetting = async (key: string, value: string | number | boolean) => {
     // 1. Save Locally
     const currentSettings = readSettings();
     localStorage.setItem("pomodoro_settings", JSON.stringify({ ...currentSettings, [key]: value }));
@@ -148,13 +191,13 @@ export default function SettingsPanel() {
     updateSetting("keepScreenOn", !keepScreenOn);
   };
 
-  const handleSaveTimerConfig = (key: string, value: any) => {
-    if (key === 'ringtone') playRingtone(value);   // বাছাইয়ের সময় শুনিয়ে দিই
-    if (key === 'pomodoroLength') setPomodoroLength(value);
-    if (key === 'shortBreak') setShortBreak(value);
-    if (key === 'longBreak') setLongBreak(value);
-    if (key === 'longBreakInterval') setLongBreakInterval(value);
-    if (key === 'ringtone') setRingtone(value);
+  const handleSaveTimerConfig = (key: string, value: string | number) => {
+    if (key === 'ringtone') playRingtone(String(value));   // বাছাইয়ের সময় শুনিয়ে দিই
+    if (key === 'pomodoroLength') setPomodoroLength(Number(value));
+    if (key === 'shortBreak') setShortBreak(Number(value));
+    if (key === 'longBreak') setLongBreak(Number(value));
+    if (key === 'longBreakInterval') setLongBreakInterval(Number(value));
+    if (key === 'ringtone') setRingtone(String(value));
 
     updateSetting(key, value);
     setActiveModal(null);
@@ -167,48 +210,6 @@ export default function SettingsPanel() {
     } catch (error) {
       console.error("Error logging out", error);
     }
-  };
-
-  const ListItem = ({
-    icon: Icon, title, value, isToggle = false, toggleState = false, onToggle = () => {}, href = "", onClick
-  }: ListItemProps) => {
-
-    const content = (
-      <div className="flex items-center justify-between py-3.5 px-2 group cursor-pointer rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
-        <div className="flex items-center gap-4 pl-1">
-          <div className="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800/50 text-indigo-500 dark:text-indigo-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-500/20 transition-colors">
-            <Icon size={18} />
-          </div>
-          <span className="text-[15px] font-medium text-slate-800 dark:text-slate-200">{title}</span>
-        </div>
-
-        <div className="flex items-center gap-3 pr-1">
-          {value !== undefined && <span className="text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-200/50 dark:bg-slate-800/50 px-3 py-1 rounded-lg capitalize">{value}</span>}
-
-          {isToggle ? (
-            <div
-              className={`w-12 h-7 rounded-full p-1 transition-all duration-300 ease-in-out flex items-center shadow-inner ${
-                toggleState ? "bg-indigo-500" : "bg-slate-300 dark:bg-slate-700"
-              }`}
-            >
-              <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out ${
-                toggleState ? "translate-x-5" : "translate-x-0"
-              }`} />
-            </div>
-          ) : (
-            <ChevronRight size={18} className="text-slate-400 dark:text-slate-600 group-hover:text-indigo-500 transition-colors" />
-          )}
-        </div>
-      </div>
-    );
-
-    if (href) return <Link href={href} className="block w-full">{content}</Link>;
-
-    return (
-      <div onClick={isToggle ? onToggle : onClick} className="block w-full">
-        {content}
-      </div>
-    );
   };
 
   const MIN = t("মিনিট", "Min");

@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth, db } from "@/lib/firebaseClient"; 
 import { 
   onAuthStateChanged, 

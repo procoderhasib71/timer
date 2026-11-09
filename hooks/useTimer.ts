@@ -25,10 +25,10 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   const hydrated = useRef(false);
   const [ready, setReady] = useState(false);   // ফিরিয়ে আনা শেষ; তার আগে সেভ করলে পুরনোটা মুছে যেত
   const finishedFor = useRef<number | null>(null);   // একই endAt এর জন্য "শেষ" একবারই
+  // সর্বশেষ callback গুলো ref এ রাখি (render এর পরে বসাই, render এর মাঝে ref বদলানো React এর নিয়মে নিষেধ)
   const finishRef = useRef(onFinish);
-  finishRef.current = onFinish;
   const changeRef = useRef(onChange);
-  changeRef.current = onChange;
+  useEffect(() => { finishRef.current = onFinish; changeRef.current = onChange; });
   const lastKey = useRef<string | null>(null);   // শুরুতে null, তাই খোলার সময় অকারণে পাঠাই না
   const isActive = endAt !== null;
 
@@ -48,6 +48,7 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
     hydrated.current = true;
     let saved: Saved | null = null;
     try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { saved = null; }
+    /* eslint-disable react-hooks/set-state-in-effect -- the saved timer lives in localStorage (browser-only), restored after mount */
     if (saved && (saved.endAt || saved.timeLeft < saved.initialDuration)) {
       setMode(saved.mode);
       setInitialDuration(saved.initialDuration);
@@ -61,6 +62,7 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
       setTimeLeft(d);
     }
     setReady(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,7 +83,7 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   // সেটিংস বদলালে: টাইমার একদম শুরুর অবস্থায় থাকলেই নতুন সময় বসাই (চলমান বা থামানো টাইমারে হাত দিই না)
   const live = useRef({ isActive, timeLeft, initialDuration, mode });
   const customized = useRef(false);   // হাতে সময় বদলালে অ্যাপে ফিরে আসার (focus) সময় সেটিংসের সময় বসাই না
-  live.current = { isActive, timeLeft, initialDuration, mode };
+  useEffect(() => { live.current = { isActive, timeLeft, initialDuration, mode }; });
   useEffect(() => {
     const updateTimerFromSettings = (e: Event) => {
       const s = live.current;

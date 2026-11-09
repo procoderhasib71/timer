@@ -7,7 +7,6 @@ import { saveAccount } from "@/lib/admcqAccount";
 import { Timer, Loader2 } from "lucide-react";
 import type { User } from "firebase/auth";
 import { doc, getDoc, setDoc, Firestore } from "firebase/firestore";
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth, db } from "@/lib/firebaseClient";
 import { useAuth } from "@/hooks/useAuth";
 import PhoneAuthCard from "@/app/components/shared/PhoneAuthCard";
@@ -21,6 +20,7 @@ export default function AuthPage() {
   const [leaving, setLeaving] = React.useState(false);
   useEffect(() => {
     if (loading || checked) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time redirect check once auth has loaded
     setChecked(true);
     if (user) { setLeaving(true); window.location.replace("/"); }
   }, [user, loading, checked]);

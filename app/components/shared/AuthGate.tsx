@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth } from '@/lib/firebaseClient';
 import { Account, fetchAccount } from '@/lib/admcqAccount';
 

@@ -1,5 +1,4 @@
 import { collection, doc, getCountFromServer, getDoc, getDocs, increment, limit, orderBy, query, setDoc, where } from "firebase/firestore";
-// @ts-ignore: Bypassing implicit any error for production build
 import { db } from "@/lib/firebaseClient";
 import { readSettings } from "@/lib/settings";
 

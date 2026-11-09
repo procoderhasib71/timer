@@ -144,6 +144,7 @@ export default function PomodoroPage() {
   // Timer Hook
   const { mode, timeLeft, isActive, toggleTimer, adjustTime, initialDuration, changeMode, getSettings, restored, applyRemote } = useTimer("pomodoro", handleTimerFinish,
     // বটে যুক্ত থাকলে বটও একই টাইমার দেখে, আর শেষে Telegram এ মেসেজ দেয় (অ্যাপ বন্ধ থাকলেও); অ্যাপেই শেষ হলে বাতিল, যাতে দুবার না বাজে
+    // eslint-disable-next-line react-hooks/immutability -- called later (when the timer changes), after pushTimer exists
     (s) => pushTimer(s));
   const [activeCategory, setActiveCategory] = useState("HSC");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -157,12 +158,14 @@ export default function PomodoroPage() {
   const { todayMinutes, streak, streakCapped } = useFocusStats(userId);
   // আজকের লক্ষ্য (মিনিট): গোলে চাপলে পরেরটায় যায়, এই ফোনেই মনে থাকে
   const [dailyGoal, setDailyGoal] = useState(120);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is browser-only, read after mount
   useEffect(() => { try { const g = Number(localStorage.getItem('pomodoro_daily_goal')); if (GOALS.includes(g)) setDailyGoal(g); } catch {} }, []);
   const nextGoal = () => { const g = GOALS[(GOALS.indexOf(dailyGoal) + 1) % GOALS.length]; setDailyGoal(g); try { localStorage.setItem('pomodoro_daily_goal', String(g)); } catch {} };
   const quickAddRef = useRef<HTMLInputElement>(null);
   const [hour, setHour] = useState<number | null>(null);
 
   // সময় অনুযায়ী শুভেচ্ছা (সার্ভারে নয়, ব্রাউজারের ঘড়িতে)
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- greeting uses the phone's clock, not the server's
   useEffect(() => { setHour(new Date().getHours()); }, []);
   const greeting = hour === null ? t("স্বাগতম", "Hello")
     : hour >= 5 && hour < 12 ? t("শুভ সকাল", "Good Morning") : hour >= 12 && hour < 17 ? t("শুভ দুপুর", "Good Afternoon")
@@ -175,6 +178,7 @@ export default function PomodoroPage() {
 
   // আগের চলমান/থামানো টাইমার ফিরে এলে সরাসরি টাইমারের পর্দায়
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- jump to the timer once a saved timer is restored
     if (restored) setCurrentScreen('timer');
   }, [restored]);
 
@@ -264,6 +268,7 @@ export default function PomodoroPage() {
       stopTasks = onSnapshot(doc(db, 'users', user.uid, 'taskData', 'allTasks'), (docSnap) => {
         let fetchedTasks: Task[] = docSnap.exists() ? (docSnap.data().tasks || []) : [];
         const renewed = renewRepeats(fetchedTasks);
+        // eslint-disable-next-line react-hooks/immutability -- runs in the snapshot callback, after saveTasks exists
         if (renewed) { fetchedTasks = renewed; saveTasks(user.uid, (list) => renewRepeats(list) ?? list); }
         // নাম/নোট টাইপ করা এখনো সেভ না হলে, নতুন ডাটার উপরেও সেটা দেখাই (নইলে লেখা এক মুহূর্তের জন্য উধাও হতো)
         const lazy = pendingLazy.current;
@@ -404,7 +409,8 @@ export default function PomodoroPage() {
 
   // অ্যাপ খোলা থাকলে ১৫ সেকেন্ড পরপর আর অ্যাপে ফিরে এলেই বটের বদল দেখি
   const pullRef = useRef<() => Promise<void>>(async () => undefined);
-  pullRef.current = async () => {
+  // সর্বশেষ state দেখে এমন pull ফাংশন; render এর পরে ref এ বসাই (এর পরের effect টা প্রথমবার এটাই ডাকে)
+  useEffect(() => { pullRef.current = async () => {
     if (!userId || document.visibilityState !== 'visible') return;
     const r = await botTimerPull(auth);
     if (!r) return;
@@ -419,7 +425,7 @@ export default function PomodoroPage() {
     const task = tm.task_id ? tasksRef.current.find((x) => x.id === tm.task_id && !x.completed) : null;
     if (task) setActiveTask(task);
     setCurrentScreen('timer');
-  };
+  }; });
   useEffect(() => {
     if (!botLinked || !userId) return;
     let busy = false;
@@ -526,6 +532,7 @@ export default function PomodoroPage() {
   // টাস্কের শিট বন্ধ: বাকি থাকা লেখা এখনই রাখি; নাম খালি রাখলে আগের নাম ফেরত
   const [confirmDelete, setConfirmDelete] = useState(false);
   const openTitle = useRef("");
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the delete confirmation when another task opens
   useEffect(() => { setConfirmDelete(false); openTitle.current = editingTask?.title || ""; }, [editingTask?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeTaskEditor = () => {
     const et = editingTask;
@@ -887,6 +894,7 @@ export default function PomodoroPage() {
   const ms = MODE_STYLE[mode];
   const longEvery = getSettings().longBreakInterval || 4;
   const doneInCycle = (activeTask?.completedPomodoros || 0) % longEvery;
+  // eslint-disable-next-line react-hooks/purity -- the "ends at" clock should move with the real time on each tick
   const endsAt = new Date(Date.now() + timeLeft * 1000).toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit', hour12: true });
   const knobAngle = (progress / 100) * 2 * Math.PI - Math.PI / 2;
   const statusText = isActive
@@ -1360,6 +1368,7 @@ export default function PomodoroPage() {
         </div>
       )}
 
+      {/* eslint-disable-next-line react-hooks/refs -- refs inside renderModals are only read in click handlers, not while rendering */}
       {renderModals()}
       
     </div>

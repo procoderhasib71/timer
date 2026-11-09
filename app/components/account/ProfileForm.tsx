@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { User, Save, School, Loader2, Check } from "lucide-react";
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth } from "@/lib/firebaseClient";
 import { saveAccount } from "@/lib/admcqAccount";
 import { useAccount } from "@/app/components/shared/AuthGate";

@@ -10,7 +10,6 @@ import { useTheme } from "next-themes";
 import { useLang } from "@/lib/i18n";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useAccountSheet } from "@/app/components/account/AccountSheet";
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth } from "@/lib/firebaseClient";
 
 // বাঁয়ে লোগো আর নাম; ডানে থিম, কমিউনিটি আর নিজের ছবি (চাপলে প্রোফাইল/সেটিংস শিট)। ভাষা বদলানো সেটিংসে।
@@ -21,6 +20,7 @@ export default function TopHeader() {
   const { account } = useAccount();
   const sheet = useAccountSheet();
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- standard mounted flag for theme UI
   useEffect(() => setMounted(true), []);
   const dark = mounted && resolvedTheme === "dark";
   const initial = (account?.name || auth.currentUser?.displayName || "?").charAt(0).toUpperCase();

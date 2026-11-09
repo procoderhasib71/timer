@@ -3,7 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { usePathname } from "next/navigation";
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth } from "@/lib/firebaseClient";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";

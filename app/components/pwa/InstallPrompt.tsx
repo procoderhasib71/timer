@@ -5,9 +5,12 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { useLang } from "@/lib/i18n";
 
+// Chrome/Android এর "ইনস্টল করো" ইভেন্ট (TypeScript এ এর টাইপ নেই)
+type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
+
 export default function InstallPrompt() {
   const { t } = useLang();
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
@@ -15,7 +18,7 @@ export default function InstallPrompt() {
       // ব্রাউজারের ডিফল্ট প্রম্পট আটকে দেওয়া হলো
       e.preventDefault();
       // ইভেন্টটি সেভ করে রাখছি যাতে পরে ট্রিগার করা যায়
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowPrompt(true);
     };
 

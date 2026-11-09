@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowLeft, Trophy, Crown, Timer } from "lucide-react";
 import Link from "next/link";
-// @ts-ignore: Bypassing implicit any error for production build
 import { auth } from "@/lib/firebaseClient";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { Board, Entry, ensureEntry, myEntry, topEntries } from "@/lib/leaderboard";
@@ -28,6 +27,7 @@ export default function LeaderboardPage() {
   useEffect(() => {
     if (!uid) return;
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- show loading again when the board changes
     setRows(null);
     setError(false);
     ensureEntry(uid, account?.name || auth.currentUser?.displayName || "")
