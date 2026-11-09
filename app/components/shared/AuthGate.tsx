@@ -12,7 +12,9 @@ import { Account, fetchAccount } from '@/lib/admcqAccount';
 // যাচাই শেষ না হওয়া পর্যন্ত শুধু spinner, তাই ভুল পেজ এক ঝলকও দেখা যায় না।
 // AdMCQ এ পৌঁছানো না গেলে আটকাই না (টাইমার চলুক)।
 
-type Ctx = { account: Account | null; setAccount: (a: Account) => void; botLinked: boolean };
+const PUBLIC_PAGES = ['/privacy', '/terms'];   // লগইন ছাড়াও খোলা যায় (Google যাচাই আর Play Store এর জন্য দরকার)
+
+type Ctx ={ account: Account | null; setAccount: (a: Account) => void; botLinked: boolean };
 const AccountContext = createContext<Ctx>({ account: null, setAccount: () => undefined, botLinked: false });
 export const useAccount = () => useContext(AccountContext);
 
@@ -36,14 +38,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   // অবস্থা অনুযায়ী ঠিক পেজে পাঠাই। /login নিজেই সামলায় (রেজিস্ট্রেশনের মাঝে OTP তে লগইন হয়ে যায়, তখন সরানো যাবে না)
   const target = state === 'out' ? '/login' : state === 'needProfile' ? '/profile' : null;
-  const wrongPage = state !== 'checking' && pathname !== '/login' && target !== null && pathname !== target;
+  const isPublic = PUBLIC_PAGES.includes(pathname);
+  const wrongPage = state !== 'checking' && !isPublic && pathname !== '/login' && target !== null && pathname !== target;
   useEffect(() => {
     if (!wrongPage) return;
     window.location.replace(target || '/');
   }, [wrongPage, target]);
 
   const value = { account, setAccount: (a: Account) => { setAccount(a); setState('ok'); }, botLinked };
-  if (state === 'checking' || wrongPage) {
+  if ((state === 'checking' && !isPublic) || wrongPage) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin text-indigo-500" size={32} />

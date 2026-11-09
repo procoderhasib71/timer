@@ -270,6 +270,11 @@ export default function SettingsPanel() {
             <LogOut size={20} />
             {t("লগআউট", "Sign Out")}
           </button>
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-4">
+            <Link href="/privacy" className="underline">Privacy Policy</Link>
+            {" · "}
+            <Link href="/terms" className="underline">Terms</Link>
+          </p>
         </div>
 
       </div>

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import Link from "next/link";
 import { saveAccount } from "@/lib/admcqAccount";
 import { Timer, Loader2 } from "lucide-react";
 import type { User } from "firebase/auth";
@@ -64,6 +65,7 @@ export default function AuthPage() {
           </div>
         }
       />
+      <p className="text-center text-xs text-slate-400 mt-4 max-w-sm">চালিয়ে গেলে আপনি <Link href="/terms" className="underline">Terms</Link> আর <Link href="/privacy" className="underline">Privacy Policy</Link> মেনে নিচ্ছেন।</p>
     </div>
   );
 }
