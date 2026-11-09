@@ -96,6 +96,7 @@ export default function AnalyticsPage() {
   }, [uid, recentFrom]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear old comparison data when it is no longer needed
     if (!uid || !needOlder) { setOlder(null); return; }
     const q = query(collection(db, 'users', uid, 'sessions'), where('timestamp', '>=', olderFrom), where('timestamp', '<=', olderTo), orderBy('timestamp', 'desc'));
     return onSnapshot(q, (snap) => setOlder(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Session))));

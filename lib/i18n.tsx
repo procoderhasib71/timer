@@ -15,6 +15,7 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("bn");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is browser-only, read after mount
     try { if (localStorage.getItem(KEY) === "en") setLangState("en"); } catch { /* প্রাইভেট মোড */ }
   }, []);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);

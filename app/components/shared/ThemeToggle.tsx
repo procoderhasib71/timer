@@ -10,6 +10,7 @@ export default function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   // পেজ লোড হওয়ার পর বাটন দেখাবো, নাহলে সার্ভার-ক্লায়েন্ট ক্যাশ কনফ্লিক্ট হবে
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- standard mounted flag for theme UI
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {

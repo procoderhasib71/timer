@@ -5,10 +5,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Send, Users, MessageSquare, Hash } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, type Timestamp } from "firebase/firestore";
 
 interface Message {
   id: string;
@@ -16,7 +16,7 @@ interface Message {
   uid: string;
   displayName: string;
   photoURL: string | null;
-  createdAt: any;
+  createdAt: Timestamp | null;
 }
 
 interface Group {
@@ -37,7 +37,7 @@ export default function CommunityPage() {
   const { account } = useAccount();
   const { t, lang } = useLang();
   const desc = (g: Group) => (lang === "bn" ? g.descriptionBn : g.description);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -96,9 +96,9 @@ export default function CommunityPage() {
     }
   };
 
-  const formatMessageTime = (timestamp: any) => {
+  const formatMessageTime = (timestamp: Timestamp | null) => {
     if (!timestamp) return t("যাচ্ছে...", "Sending...");
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp.toDate();
     return date.toLocaleTimeString(lang === "bn" ? "bn-BD" : "en-GB", { hour: '2-digit', minute: '2-digit' });
   };
 

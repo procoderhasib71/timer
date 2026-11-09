@@ -19,6 +19,7 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is browser-only, read after mount
     try { setOpen(!localStorage.getItem(KEY)); } catch { setOpen(false); }
   }, []);
 
