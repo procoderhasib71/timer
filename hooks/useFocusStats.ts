@@ -7,9 +7,12 @@ import { db } from "@/lib/firebaseClient";
 // হোমের জন্য হালকা হিসাব: আজ কত মিনিট ফোকাস আর টানা কত দিন। শুধু শেষ DAYS দিনের সেশন পড়ি (খরচ কম)
 const DAYS = 35;
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
+const EMPTY = new Map<string, number>();
 
 export function useFocusStats(uid: string | null) {
-  const [byDay, setByDay] = useState<Map<string, number>>(new Map());
+  // কার হিসাব সেটাও রাখি: logout বা অন্য কেউ login করলে আগের জনের মিনিট/streak এক মুহূর্তও দেখাই না
+  const [data, setData] = useState<{ uid: string | null; byDay: Map<string, number> }>({ uid: null, byDay: new Map() });
+  const byDay = uid && data.uid === uid ? data.byDay : EMPTY;
 
   useEffect(() => {
     if (!uid) return;
@@ -25,7 +28,7 @@ export function useFocusStats(uid: string | null) {
         const k = dayKey(new Date(s.timestamp));
         m.set(k, (m.get(k) || 0) + (s.duration || 0));
       });
-      setByDay(m);
+      setData({ uid, byDay: m });
     });
   }, [uid]);
 

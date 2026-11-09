@@ -13,13 +13,14 @@ import { useTimer, TimerMode, TimerState } from "@/hooks/useTimer";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, onSnapshot, doc, setDoc, addDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, addDoc, runTransaction } from "firebase/firestore";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useAccountSheet } from "@/app/components/account/AccountSheet";
 import { BotSession, botReminder, botTimerPull, botTimerPush } from "@/lib/admcqAccount";
 import { addMinutes, ensureEntry } from "@/lib/leaderboard";
 import { useFocusStats } from "@/hooks/useFocusStats";
 import { tap } from "@/lib/haptics";
+import { readSettings } from "@/lib/settings";
 import { useLang } from "@/lib/i18n";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
@@ -40,6 +41,10 @@ interface Task {
   completedAt?: string | null; 
   list?: string; 
 }
+
+// টাস্ক তালিকায় একটা বদল: যেকোনো তালিকা (এই ফোনের বা ডাটাবেসের সর্বশেষ) নিয়ে নতুন তালিকা দেয়
+type TaskEdit = (list: Task[]) => Task[];
+const patchTask = (id: string, updates: Partial<Task>): TaskEdit => (list) => list.map((t) => (t.id === id ? { ...t, ...updates } : t));
 
 const CATEGORIES = ["HSC", "Admission", "Medical", "Varsity", "MBBS"];
 
@@ -128,7 +133,7 @@ export default function PomodoroPage() {
     lateFinish.current = lateMs > 2 * 60 * 1000;
     if (lateFinish.current) return;
     if (finishedMode === 'pomodoro') setCelebrate(true);
-    const settings = JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
+    const settings = readSettings();
     playRingtone(settings.ringtone || "Default");
     vibrate();
     if (finishedMode === 'pomodoro') notify(t("ফোকাস সেশন শেষ 🍅", "Focus session complete 🍅"), t("দারুণ! এবার একটু বিরতি নাও।", "Great work! Time for a break."));
@@ -144,6 +149,8 @@ export default function PomodoroPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const tasksRef = useRef<Task[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  // নাম/নোট টাইপের যে বদল এখনো ডাটাবেসে যায়নি
+  const pendingLazy = useRef<{ uid: string; id: string; updates: Partial<Task> } | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const userName = (account?.name || auth.currentUser?.displayName || "").split(" ")[0];
@@ -257,7 +264,11 @@ export default function PomodoroPage() {
       stopTasks = onSnapshot(doc(db, 'users', user.uid, 'taskData', 'allTasks'), (docSnap) => {
         let fetchedTasks: Task[] = docSnap.exists() ? (docSnap.data().tasks || []) : [];
         const renewed = renewRepeats(fetchedTasks);
-        if (renewed) { fetchedTasks = renewed; syncTasksToDB(renewed, user.uid); }
+        if (renewed) { fetchedTasks = renewed; saveTasks(user.uid, (list) => renewRepeats(list) ?? list); }
+        // নাম/নোট টাইপ করা এখনো সেভ না হলে, নতুন ডাটার উপরেও সেটা দেখাই (নইলে লেখা এক মুহূর্তের জন্য উধাও হতো)
+        const lazy = pendingLazy.current;
+        if (lazy) fetchedTasks = patchTask(lazy.id, lazy.updates)(fetchedTasks);
+        tasksRef.current = fetchedTasks;
         setTasks(fetchedTasks);
         // চলতি টাস্কের নতুন তথ্য; না থাকলে আগে যেটায় কাজ চলছিল, নইলে প্রথম অসম্পূর্ণ টাস্ক
         setActiveTask((prev) => {
@@ -270,13 +281,33 @@ export default function PomodoroPage() {
     return () => { stopTasks?.(); unsubscribeAuth(); };
   }, [router]);
 
-  const syncTasksToDB = async (updatedTasks: Task[], uid: string) => {
+  // সব টাস্ক একটা doc এ একটা তালিকা। আগে এই ফোনের পুরো তালিকা দিয়ে doc টা ঢেকে দিতাম, তাই অন্য ফোন বা বট একই সময়ে
+  // কিছু বদলালে সেটা মুছে যেত। এখন শুধু "কী বদলাল" (edit) পাঠাই: transaction এ সর্বশেষ তালিকা পড়ে তার উপর বসাই।
+  // অফলাইনে transaction চলে না, তখন আগের মতো এই ফোনের তালিকাই লিখি (নেট ফিরলে Firestore পাঠিয়ে দেয়)।
+  const saveTasks = async (uid: string, edit: TaskEdit) => {
+    const ref = doc(db, 'users', uid, 'taskData', 'allTasks');
     try {
-      const safeTasks = JSON.parse(JSON.stringify(updatedTasks));
-      await setDoc(doc(db, 'users', uid, 'taskData', 'allTasks'), { tasks: safeTasks });
-    } catch (error) {
-      console.error("DB Sync Error: ", error);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const latest: Task[] = snap.exists() ? (snap.data().tasks || []) : [];
+        tx.set(ref, { tasks: JSON.parse(JSON.stringify(edit(latest))) });
+      });
+    } catch {
+      try {
+        await setDoc(ref, { tasks: JSON.parse(JSON.stringify(tasksRef.current)) });
+      } catch (error) {
+        console.error("DB Sync Error: ", error);
+      }
     }
+  };
+
+  // এই ফোনে সাথে সাথে দেখাই, তারপর ডাটাবেসে
+  const applyTasks = (uid: string | null, edit: TaskEdit) => {
+    const next = edit(tasksRef.current);
+    tasksRef.current = next;
+    setTasks(next);
+    if (uid) saveTasks(uid, edit);
+    return next;
   };
 
   const saveFocusSession = async (finalTimeLeft: number, isCompleted: boolean) => {
@@ -286,23 +317,19 @@ export default function PomodoroPage() {
     
     if (timeSpentInSeconds >= 60) {
       try {
-        await addDoc(collection(db, 'users', userId, 'sessions'), {
+        const saved = await addDoc(collection(db, 'users', userId, 'sessions'), {
           taskId: activeTask?.id || null,
           taskTitle: activeTask?.title || "Focus Session",
           category: activeTask?.category || activeCategory,
           duration: Math.round(timeSpentInSeconds / 60),
           mode: mode, completed: isCompleted, timestamp: new Date().toISOString()
         });
-        if (mode === 'pomodoro') addMinutes(userId, account?.name || auth.currentUser?.displayName || "", timeSpentInSeconds / 60).catch(() => undefined);
+        if (mode === 'pomodoro') addMinutes(userId, account?.name || auth.currentUser?.displayName || "", timeSpentInSeconds / 60, saved.id).catch(() => undefined);
 
         if (isCompleted && activeTask && mode === 'pomodoro') {
-          const newCompletedCount = (activeTask.completedPomodoros || 0) + 1;
-          const updatedTasks = tasks.map(t => 
-            t.id === activeTask.id ? { ...t, completedPomodoros: newCompletedCount } : t
-          );
-          setTasks(updatedTasks);
-          setActiveTask({...activeTask, completedPomodoros: newCompletedCount});
-          syncTasksToDB(updatedTasks, userId);
+          const id = activeTask.id;
+          applyTasks(userId, (list) => list.map(t => t.id === id ? { ...t, completedPomodoros: (t.completedPomodoros || 0) + 1 } : t));
+          setActiveTask((prev) => prev && prev.id === id ? { ...prev, completedPomodoros: (prev.completedPomodoros || 0) + 1 } : prev);
         }
       } catch (error) { console.error("Error saving session: ", error); }
     }
@@ -365,16 +392,13 @@ export default function PomodoroPage() {
   // বট থেকে চালানো যে সেশন অ্যাপ দেখেনি (বন্ধ ছিল), সেটা পড়ার হিসাব, লিডারবোর্ড আর টাস্কে তুলি
   const saveBotSession = async (uid: string, s: BotSession) => {
     const task = tasksRef.current.find((x) => x.id === s.task_id);
-    await addDoc(collection(db, 'users', uid, 'sessions'), {
+    const saved = await addDoc(collection(db, 'users', uid, 'sessions'), {
       taskId: s.task_id, taskTitle: s.task_title || task?.title || "Focus Session", category: task?.category || activeCategory,
       duration: s.minutes, mode: s.mode, completed: Boolean(s.completed), timestamp: new Date(s.ended_at).toISOString(), source: 'bot',
     });
-    if (s.mode === 'pomodoro') addMinutes(uid, account?.name || auth.currentUser?.displayName || "", s.minutes).catch(() => undefined);
+    if (s.mode === 'pomodoro') addMinutes(uid, account?.name || auth.currentUser?.displayName || "", s.minutes, saved.id).catch(() => undefined);
     if (s.completed && task) {
-      const updated = tasksRef.current.map((x) => x.id === task.id ? { ...x, completedPomodoros: (x.completedPomodoros || 0) + 1 } : x);
-      tasksRef.current = updated;
-      setTasks(updated);
-      syncTasksToDB(updated, uid);
+      applyTasks(uid, (list) => list.map((x) => x.id === task.id ? { ...x, completedPomodoros: (x.completedPomodoros || 0) + 1 } : x));
     }
   };
 
@@ -440,10 +464,8 @@ export default function PomodoroPage() {
       list: targetList, dueDate: addDate !== "None" ? addDate : null, priority: addPriority, reminder: null, repeat: null, notes: null
     };
     
-    const updatedTasks = [newTask, ...tasks];
-    setTasks(updatedTasks);
+    applyTasks(userId, (list) => [newTask, ...list]);
     setIsAddingTask(false);
-    if (userId) syncTasksToDB(updatedTasks, userId);
   };
 
   const handleQuickAddTask = async (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -455,9 +477,8 @@ export default function PomodoroPage() {
         list: "Today", priority: 0, dueDate: null, reminder: null, repeat: null, notes: null
       };
       
-      const updatedTasks = [newTask, ...tasks];
-      setTasks(updatedTasks); setActiveTask(newTask); setQuickNewTaskTitle(""); setShowTaskSelector(false); 
-      if (userId) syncTasksToDB(updatedTasks, userId);
+      applyTasks(userId, (list) => [newTask, ...list]);
+      setActiveTask(newTask); setQuickNewTaskTitle(""); setShowTaskSelector(false);
     }
   };
 
@@ -469,27 +490,37 @@ export default function PomodoroPage() {
   };
 
   // lazy: নাম আর নোট টাইপের সময় প্রতি অক্ষরে নয়, থামার একটু পরে ডাটাবেসে (আর নাম বদলালে বটের রিমাইন্ডারেও)
+  // অপেক্ষায় থাকা বদল (কোন টাস্ক, কী কী) জমিয়ে রাখি; থামলে বা অন্য কিছু বদলালে একসাথে পাঠাই
   const lazySync = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleUpdateTaskDetails = async (taskId: string, updates: Partial<Task>, lazy = false) => {
-    if (!userId) return;
-    const before = tasks.find(t => t.id === taskId);
-    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
-    setTasks(updatedTasks);
-    const after = updatedTasks.find(t => t.id === taskId);
-    if (editingTask && editingTask.id === taskId) setEditingTask(prev => prev ? { ...prev, ...updates } : null);
-    if (activeTask && activeTask.id === taskId) setActiveTask(prev => prev ? { ...prev, ...updates } : null);
+  const flushLazy = () => {
     if (lazySync.current) clearTimeout(lazySync.current);
     lazySync.current = null;
+    const p = pendingLazy.current;
+    pendingLazy.current = null;
+    if (p) saveTasks(p.uid, patchTask(p.id, p.updates));
+    return p;
+  };
+  const handleUpdateTaskDetails = async (taskId: string, updates: Partial<Task>, lazy = false) => {
+    if (!userId) return;
+    const before = tasksRef.current.find(t => t.id === taskId);
+    const after = applyTasks(null, patchTask(taskId, updates)).find(t => t.id === taskId);
+    if (editingTask && editingTask.id === taskId) setEditingTask(prev => prev ? { ...prev, ...updates } : null);
+    if (activeTask && activeTask.id === taskId) setActiveTask(prev => prev ? { ...prev, ...updates } : null);
     if (lazy) {
+      if (pendingLazy.current && pendingLazy.current.id !== taskId) flushLazy();
+      if (lazySync.current) clearTimeout(lazySync.current);
+      const merged = { ...(pendingLazy.current?.updates || {}), ...updates };
+      pendingLazy.current = { uid: userId, id: taskId, updates: merged };
       lazySync.current = setTimeout(() => {
-        lazySync.current = null;
-        syncTasksToDB(updatedTasks, userId);
-        if (after && 'title' in updates && isClock(after.reminder) && after.title.trim()) syncReminder(after);
+        const p = flushLazy();
+        const now = tasksRef.current.find(t => t.id === taskId);
+        if (p && now && 'title' in p.updates && isClock(now.reminder) && now.title.trim()) syncReminder(now);
       }, 800);
       return;
     }
+    flushLazy();
     if (after && ['reminder', 'repeat', 'completed', 'dueDate'].some(k => k in updates) && (isClock(after.reminder) || isClock(before?.reminder))) syncReminder(after);
-    syncTasksToDB(updatedTasks, userId);
+    saveTasks(userId, patchTask(taskId, updates));
   };
 
   // টাস্কের শিট বন্ধ: বাকি থাকা লেখা এখনই রাখি; নাম খালি রাখলে আগের নাম ফেরত
@@ -500,10 +531,7 @@ export default function PomodoroPage() {
     const et = editingTask;
     if (et && !et.title.trim()) {
       handleUpdateTaskDetails(et.id, { title: openTitle.current.trim() || t("নাম ছাড়া কাজ", "Untitled task") });
-    } else if (lazySync.current && userId) {
-      clearTimeout(lazySync.current);
-      lazySync.current = null;
-      syncTasksToDB(tasks, userId);
+    } else if (flushLazy()) {
       if (et && isClock(et.reminder)) syncReminder(et);
     }
     setEditingTask(null);
@@ -513,11 +541,8 @@ export default function PomodoroPage() {
   // কাজ মুছে ফেলা: বটের রিমাইন্ডারও বাতিল, টাইমারে এটা বাছাই থাকলে সরাই
   const deleteTask = (task: Task) => {
     if (!userId) return;
-    if (lazySync.current) clearTimeout(lazySync.current);
-    lazySync.current = null;
-    const updatedTasks = tasks.filter(x => x.id !== task.id);
-    setTasks(updatedTasks);
-    syncTasksToDB(updatedTasks, userId);
+    flushLazy();
+    applyTasks(userId, (list) => list.filter(x => x.id !== task.id));
     if (isClock(task.reminder)) syncReminder({ ...task, reminder: null });
     if (activeTask?.id === task.id) setActiveTask(null);
     setEditingTask(null);

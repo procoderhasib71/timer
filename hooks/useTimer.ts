@@ -1,5 +1,6 @@
 // src/hooks/useTimer.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { readSettings } from '@/lib/settings';
 
 export type TimerMode = 'pomodoro' | 'shortBreak' | 'longBreak';
 
@@ -31,10 +32,7 @@ export function useTimer(initialMode: TimerMode = 'pomodoro', onFinish?: (mode: 
   const lastKey = useRef<string | null>(null);   // শুরুতে null, তাই খোলার সময় অকারণে পাঠাই না
   const isActive = endAt !== null;
 
-  const getSettings = useCallback(() => {
-    if (typeof window === 'undefined') return {};
-    return JSON.parse(localStorage.getItem('pomodoro_settings') || '{}');
-  }, []);
+  const getSettings = useCallback(() => readSettings(), []);
 
   const getDurationForMode = useCallback((currentMode: TimerMode) => {
     const settings = getSettings();

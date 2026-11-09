@@ -1,6 +1,7 @@
 import { collection, doc, getCountFromServer, getDoc, getDocs, increment, limit, orderBy, query, setDoc, where } from "firebase/firestore";
 // @ts-ignore: Bypassing implicit any error for production build
 import { db } from "@/lib/firebaseClient";
+import { readSettings } from "@/lib/settings";
 
 // আসল লিডারবোর্ড: প্রত্যেকের ফোকাস মিনিট leaderboards/{week বা "all"}/users/{uid} এ (Firestore)।
 // নিজের ঘরে শুধু নিজে লেখে, লগইন করা সবাই পড়ে (firestore.rules এ সীমা: একবারে ৩ ঘণ্টার বেশি বাড়ানো যায় না)।
@@ -22,33 +23,60 @@ const ref = (b: Board, uid: string) => doc(db, "leaderboards", boardId(b), "user
 
 /** লিডারবোর্ডে নাম দেখাবে কিনা (সেটিংস, এই ফোনে) */
 export const isHidden = () => {
-  try { return JSON.parse(localStorage.getItem("pomodoro_settings") || "{}").showOnLeaderboard === false; } catch { return false; }
+  return readSettings().showOnLeaderboard === false;
 };
 
+// ensureEntry চলার সময় কোনো সেশন শেষ হলে সেটা দুবার গোনা হতো (ঘর বানানোর গোনায় একবার, addMinutes এ আবার)।
+// তাই: addMinutes আগে চলমান ensureEntry শেষ হওয়ার অপেক্ষা করে, আর ensureEntry যে সেশনগুলো গুনেছে
+// (id দিয়ে) আর যে ঘর নিজে বানিয়েছে, সেখানে আর যোগ করে না।
+type Ensured = { counted: Set<string>; created: Board[] };
+const ensuring = new Map<string, Promise<Ensured>>();
+// rules এ নতুন ঘর বানানোর সীমা (firestore.rules এর সাথে মিলিয়ে রাখো)
+const CREATE_MAX = 180;
+
 /** প্রথমবার: নিজের আগের সেশন থেকে এই সপ্তাহের আর সব সময়ের মিনিট গুনে ঘর বানাই */
-export async function ensureEntry(uid: string, name: string) {
+export function ensureEntry(uid: string, name: string): Promise<void> {
+  const p = createEntries(uid, name);
+  ensuring.set(uid, p.catch(() => ({ counted: new Set<string>(), created: [] })));
+  return p.then(() => undefined);
+}
+
+async function createEntries(uid: string, name: string): Promise<Ensured> {
+  const counted = new Set<string>();
+  const created: Board[] = [];
   const [w, a] = await Promise.all([getDoc(ref("week", uid)), getDoc(ref("all", uid))]);
-  if (w.exists() && a.exists()) return;
+  if (w.exists() && a.exists()) return { counted, created };
   const start = Date.parse(`${weekId()}T00:00:00+06:00`);
   let week = 0, weekN = 0, all = 0, allN = 0;
   (await getDocs(collection(db, "users", uid, "sessions"))).forEach((s) => {
     const x = s.data();
+    counted.add(s.id);
     if (x.mode && x.mode !== "pomodoro") return;
     const m = Math.max(0, Math.round(Number(x.duration) || 0));
     all += m; allN++;
     if (Date.parse(x.timestamp) >= start) { week += m; weekN++; }
   });
   const base = { uid, name: name.slice(0, 40), hidden: isHidden() };
-  if (!w.exists()) await setDoc(ref("week", uid), { ...base, minutes: week, sessions: weekN });
-  if (!a.exists()) await setDoc(ref("all", uid), { ...base, minutes: all, sessions: allN });
+  if (!w.exists()) {
+    await setDoc(ref("week", uid), { ...base, minutes: Math.min(week, CREATE_MAX), sessions: weekN });
+    created.push("week");
+  }
+  if (!a.exists()) {
+    await setDoc(ref("all", uid), { ...base, minutes: Math.min(all, CREATE_MAX), sessions: allN });
+    created.push("all");
+  }
+  return { counted, created };
 }
 
-/** একটা ফোকাস সেশন শেষ (বা মাঝপথে থামানো): মিনিট যোগ */
-export async function addMinutes(uid: string, name: string, minutes: number) {
+/** একটা ফোকাস সেশন শেষ (বা মাঝপথে থামানো): মিনিট যোগ। sessionId = users/{uid}/sessions এর doc id */
+export async function addMinutes(uid: string, name: string, minutes: number, sessionId?: string) {
   const m = Math.min(180, Math.max(0, Math.round(minutes)));
   if (!m) return;
+  const done = await ensuring.get(uid);
+  const skip = done && sessionId && done.counted.has(sessionId) ? done.created : [];
   const data = { uid, name: name.slice(0, 40), hidden: isHidden(), minutes: increment(m), sessions: increment(1) };
-  await Promise.all([setDoc(ref("week", uid), data, { merge: true }), setDoc(ref("all", uid), data, { merge: true })]);
+  await Promise.all((["week", "all"] as Board[]).filter((b) => !skip.includes(b))
+    .map((b) => setDoc(ref(b, uid), data, { merge: true })));
 }
 
 /** সেটিংসে নাম লুকানো/দেখানো বদলালে দুই বোর্ডেই */
