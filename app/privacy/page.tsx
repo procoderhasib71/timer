@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import LegalPage, { CONTACT_URL } from '../components/shared/LegalPage';
 
-export const metadata: Metadata = { title: 'Privacy Policy | Shonghi Focus' };
+export const metadata: Metadata = { title: 'Privacy Policy | Shongi Focus' };
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" updated="৯ নভেম্বর ২০২৬">
-      <p>Shonghi Focus পড়ার সময় মাপার (Pomodoro) অ্যাপ। আপনার কোন তথ্য রাখা হয়, কেন রাখা হয় আর আপনি কী করতে পারেন, এখানে লেখা আছে।</p>
+      <p>Shongi Focus পড়ার সময় মাপার (Pomodoro) অ্যাপ। আপনার কোন তথ্য রাখা হয়, কেন রাখা হয় আর আপনি কী করতে পারেন, এখানে লেখা আছে।</p>
 
       <h2>কী তথ্য রাখা হয়</h2>
       <ul>

@@ -60,7 +60,7 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
     <div>
       <div className={onSaved ? "hidden" : "mb-8"}>
         <h1 className="text-2xl font-extrabold tracking-tight">{firstTime ? t("প্রোফাইলটা পূরণ করো", "Complete your profile") : t("তোমার প্রোফাইল", "Your Profile")}</h1>
-        <p className="text-slate-400 text-sm mt-1">{t("Shonghi Lab এর সব অ্যাপে একই প্রোফাইল।", "One profile for every Shonghi Lab app.")}</p>
+        <p className="text-slate-400 text-sm mt-1">{t("Shongi Lab এর সব অ্যাপে একই প্রোফাইল।", "One profile for every Shongi Lab app.")}</p>
       </div>
 
       <form onSubmit={handleSaveProfile} className="space-y-6">

@@ -43,7 +43,7 @@ export default function InstallPrompt() {
   return (
     <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-indigo-600 text-white p-4 rounded-2xl shadow-xl z-50 flex items-center justify-between transition-all">
       <div className="flex flex-col">
-        <span className="font-bold text-sm">{t("Shonghi Focus ইনস্টল করো", "Install Shonghi Focus")}</span>
+        <span className="font-bold text-sm">{t("Shongi Focus ইনস্টল করো", "Install Shongi Focus")}</span>
         <span className="text-[10px] opacity-80">{t("হোম স্ক্রিনে রাখো, অ্যাপের মতো খুলবে", "Add it to your home screen like an app")}</span>
       </div>
       <div className="flex items-center gap-3">

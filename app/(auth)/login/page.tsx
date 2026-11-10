@@ -61,7 +61,7 @@ export default function AuthPage() {
             <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-indigo-500/20 rotate-3">
               <Timer size={28} className="text-white" />
             </div>
-            <span className="font-extrabold text-xl">Shonghi Focus</span>
+            <span className="font-extrabold text-xl">Shongi Focus</span>
           </div>
         }
       />

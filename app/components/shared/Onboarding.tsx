@@ -34,7 +34,7 @@ export default function Onboarding() {
   const slides = [
     {
       icon: <Timer size={40} />,
-      title: t("Shonghi Focus এ স্বাগতম", "Welcome to Shonghi Focus"),
+      title: t("Shongi Focus এ স্বাগতম", "Welcome to Shongi Focus"),
       body: t("মন দিয়ে পড়ার টাইমার আর পড়ার পরিকল্পনা, এক জায়গায়।", "A focus timer and study planner, all in one place."),
       extra: (
         <div className="flex gap-2 justify-center mt-6">
