@@ -11,7 +11,7 @@ import { Account, fetchAccount } from '@/lib/admcqAccount';
 // যাচাই শেষ না হওয়া পর্যন্ত শুধু spinner, তাই ভুল পেজ এক ঝলকও দেখা যায় না।
 // AdMCQ এ পৌঁছানো না গেলে আটকাই না (টাইমার চলুক)।
 
-const PUBLIC_PAGES = ['/privacy', '/terms'];   // লগইন ছাড়াও খোলা যায় (Google যাচাই আর Play Store এর জন্য দরকার)
+const PUBLIC_PAGES = ['/privacy', '/terms', '/delete-account'];   // লগইন ছাড়াও খোলা যায় (Google যাচাই আর Play Store এর জন্য দরকার)
 
 type Ctx ={ account: Account | null; setAccount: (a: Account) => void; botLinked: boolean };
 const AccountContext = createContext<Ctx>({ account: null, setAccount: () => undefined, botLinked: false });
