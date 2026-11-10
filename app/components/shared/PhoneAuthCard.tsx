@@ -1,7 +1,7 @@
 "use client";
 
 // AdMCQ এর মতো লগইন: ফোন নম্বর + পাসওয়ার্ড (OTP ছাড়া), রেজিস্ট্রেশন আর "পাসওয়ার্ড ভুলে গেছি" তে একবার OTP, আর Google।
-// একই machranga Firebase আর একই লুকানো ইমেইল (8801...@phone.admcq.com), তাই সব অ্যাপে একটাই Shonghi Lab অ্যাকাউন্ট।
+// একই machranga Firebase আর একই লুকানো ইমেইল (8801...@phone.admcq.com), তাই সব অ্যাপে একটাই Shongi Lab অ্যাকাউন্ট।
 // এই ফাইল money-manager-app/app/components/PhoneAuthCard.tsx এও হুবহু আছে; বদলালে দুই জায়গাতেই বদলাও।
 
 import { useEffect, useRef, useState } from "react";
@@ -162,7 +162,7 @@ export default function PhoneAuthCard({ auth, header, accent, onSignedIn }: Prop
       const registered = await isRegistered(n);
       if (mode === "register" && registered === true) {
         switchMode("login");
-        throw new Error("আপনার আগে থেকেই অ্যাকাউন্ট আছে। Shonghi Lab এর পাসওয়ার্ড দিয়ে লগইন করুন।");
+        throw new Error("আপনার আগে থেকেই অ্যাকাউন্ট আছে। Shongi Lab এর পাসওয়ার্ড দিয়ে লগইন করুন।");
       }
       if (mode === "forgot" && registered === false) {
         switchMode("register");
@@ -191,7 +191,7 @@ export default function PhoneAuthCard({ auth, header, accent, onSignedIn }: Prop
       if (mode === "register" && cred.user.providerData.some((p) => p.providerId === "password")) {
         await auth.signOut();
         switchMode("login");
-        throw new Error("আপনার আগে থেকেই অ্যাকাউন্ট আছে। Shonghi Lab এর পাসওয়ার্ড দিয়ে লগইন করুন।");
+        throw new Error("আপনার আগে থেকেই অ্যাকাউন্ট আছে। Shongi Lab এর পাসওয়ার্ড দিয়ে লগইন করুন।");
       }
       setNeedName(!cred.user.displayName);
       setStep("password");
@@ -239,7 +239,7 @@ export default function PhoneAuthCard({ auth, header, accent, onSignedIn }: Prop
     <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl p-7">
       {header}
       <h1 className="text-center text-lg font-black text-slate-800 dark:text-white mb-1">{title}</h1>
-      <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-6">Shonghi Lab account</p>
+      <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-6">Shongi Lab account</p>
 
       {error && <div className="mb-5 p-3 rounded-2xl bg-rose-100 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-sm text-rose-600 dark:text-rose-400 text-center">{error}</div>}
 

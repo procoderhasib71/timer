@@ -39,7 +39,7 @@ export default function TopHeader() {
       <Link href="/" className="flex items-center gap-2.5">
         <Image src="/icons/icon-192.png" alt="" width={34} height={34} className="rounded-xl shadow-sm" />
         <span className="text-[17px] font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Shonghi <span className="text-indigo-600 dark:text-indigo-400">Focus</span>
+          Shongi <span className="text-indigo-600 dark:text-indigo-400">Focus</span>
         </span>
       </Link>
       <div className="flex items-center gap-2">

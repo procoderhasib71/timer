@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import LegalPage, { CONTACT_URL } from '../components/shared/LegalPage';
 
-export const metadata: Metadata = { title: 'Privacy Policy | Shonghi Focus' };
+export const metadata: Metadata = { title: 'Privacy Policy | Shongi Focus' };
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" updated="৯ নভেম্বর ২০২৬">
-      <p>Shonghi Focus পড়ার সময় মাপার (Pomodoro) অ্যাপ। আপনার কোন তথ্য রাখা হয়, কেন রাখা হয় আর আপনি কী করতে পারেন, এখানে লেখা আছে।</p>
+      <p>Shongi Focus পড়ার সময় মাপার (Pomodoro) অ্যাপ। আপনার কোন তথ্য রাখা হয়, কেন রাখা হয় আর আপনি কী করতে পারেন, এখানে লেখা আছে।</p>
 
       <h2>কী তথ্য রাখা হয়</h2>
       <ul>
@@ -33,13 +34,13 @@ export default function PrivacyPage() {
       </ul>
 
       <h2>তথ্য কতদিন থাকে</h2>
-      <p>অ্যাকাউন্ট চালু থাকা পর্যন্ত থাকে। আপনি মুছতে বললে মূল ডাটাবেস থেকে মুছে দেওয়া হয়।</p>
+      <p>অ্যাকাউন্ট চালু থাকা পর্যন্ত থাকে। আপনি মুছে দিলে সাথে সাথে মূল ডাটাবেস থেকে মুছে যায়।</p>
 
       <h2>আপনার অধিকার</h2>
       <ul>
         <li>বদলানো: অ্যাপ থেকেই টাস্ক, প্রোফাইল আর সেটিংস বদলাতে পারেন।</li>
         <li>লুকানো: সেটিংস থেকে লিডারবোর্ডে নিজের নাম লুকাতে পারেন।</li>
-        <li>মোছা: পড়ার হিসাব বা পুরো অ্যাকাউন্ট মুছতে যোগাযোগ করুন, কারণ অ্যাকাউন্ট অন্য অ্যাপের সাথে যুক্ত।</li>
+        <li>মোছা: সেটিংস এর &quot;অ্যাকাউন্ট মুছে ফেলুন&quot; দিয়ে পুরো অ্যাকাউন্ট (Money আর AdMCQ সহ) মুছতে পারেন। বিস্তারিত: <Link href="/delete-account">অ্যাকাউন্ট মুছে ফেলা</Link>।</li>
       </ul>
 
       <h2>নিরাপত্তা</h2>

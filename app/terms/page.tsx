@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import LegalPage, { CONTACT_URL } from '../components/shared/LegalPage';
 
-export const metadata: Metadata = { title: 'Terms | Shonghi Focus' };
+export const metadata: Metadata = { title: 'Terms | Shongi Focus' };
 
 export default function TermsPage() {
   return (
     <LegalPage title="Terms of Use" updated="৯ নভেম্বর ২০২৬">
-      <p>Shonghi Focus ব্যবহার করলে আপনি এই শর্তগুলো মেনে নিচ্ছেন।</p>
+      <p>Shongi Focus ব্যবহার করলে আপনি এই শর্তগুলো মেনে নিচ্ছেন।</p>
 
       <h2>অ্যাপটা কী</h2>
       <p>এটা পড়ার সময় মাপা আর টাস্ক গুছিয়ে রাখার সহায়ক।</p>

@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { readSettings } from "@/lib/settings";
+import DeleteAccount from "./DeleteAccount";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -271,6 +272,7 @@ export default function SettingsPanel() {
             <LogOut size={20} />
             {t("লগআউট", "Sign Out")}
           </button>
+          <div className="mt-6 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-4"><DeleteAccount /></div>
           <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-4">
             <Link href="/privacy" className="underline">Privacy Policy</Link>
             {" · "}

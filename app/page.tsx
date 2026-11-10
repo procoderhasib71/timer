@@ -190,7 +190,7 @@ export default function PomodoroPage() {
   // ব্রাউজারের ট্যাবে বাকি সময়
   useEffect(() => {
     const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-    const title = !isActive && timeLeft === initialDuration ? "Shonghi Focus"
+    const title = !isActive && timeLeft === initialDuration ? "Shongi Focus"
       : `${isActive ? "" : "⏸ "}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")} · ${mode === 'pomodoro' ? t("ফোকাস", "Focus") : t("বিরতি", "Break")}`;
     document.title = title;
     // পেজ লোডের পরে Next নিজের title বসায়; থামানো টাইমারে তাই একটু পরে আবার

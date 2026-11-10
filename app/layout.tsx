@@ -32,14 +32,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Shonghi Focus",
+  title: "Shongi Focus",
   description: "Focus timer and study planner for students in Bangladesh",
-  applicationName: "Shonghi Focus",
+  applicationName: "Shongi Focus",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",   // অ্যাপ স্ট্যাটাস বারের নিচ পর্যন্ত; হেডারের উপরের padding নচের জায়গা রাখে
-    title: "Shonghi Focus",
+    title: "Shongi Focus",
   },
 };
 
