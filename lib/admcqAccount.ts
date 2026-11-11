@@ -22,7 +22,7 @@ async function call(auth: Auth, path: string, init: RequestInit = {}): Promise<a
     headers: { Authorization: `Bearer ${token}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
   });
   const d = await res.json().catch(() => null);
-  if (!d?.success) throw new Error(d?.error || 'Could not reach AdMCQ');
+  if (!d?.success) throw new Error(d?.error || 'Could not reach the account server');
   return d;
 }
 

@@ -59,8 +59,8 @@ export default function DeleteAccount() {
       <div>
         <h3 className="font-bold text-rose-600 dark:text-rose-400">{t("অ্যাকাউন্ট মুছে ফেলুন", "Delete account")}</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          {t("Shongi Lab অ্যাকাউন্ট পুরো মুছে যাবে: Pomodoro, Money আর AdMCQ সবখানের হিসাব, প্রোফাইল আর লগইন। ফেরানো যাবে না।",
-            "Your Shongi Lab account will be deleted everywhere: Pomodoro, Money and AdMCQ data, profile and login. This can't be undone.")}
+          {t("Shongi Lab অ্যাকাউন্ট পুরো মুছে যাবে: Pomodoro, Money আর অন্য সব Shongi Lab অ্যাপের হিসাব, প্রোফাইল আর লগইন। ফেরানো যাবে না।",
+            "Your Shongi Lab account will be deleted everywhere: Pomodoro, Money and all other Shongi Lab app data, profile and login. This can't be undone.")}
         </p>
       </div>
       {!open ? (

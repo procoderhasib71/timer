@@ -10,14 +10,14 @@ export const metadata: Metadata = { title: 'Delete account | Shongi Focus' };
 export default function DeleteAccountPage() {
   return (
     <LegalPage title="অ্যাকাউন্ট মুছে ফেলা" updated="১০ নভেম্বর ২০২৬">
-      <p>Shongi Focus (Pomodoro), Money Manager আর AdMCQ একই Shongi Lab অ্যাকাউন্ট ব্যবহার করে। অ্যাকাউন্ট মুছলে তিনটাতেই মুছে যায়।</p>
+      <p>Shongi Focus (Pomodoro) আর Shongi Lab এর অন্য অ্যাপ (যেমন Money Manager) একই অ্যাকাউন্ট ব্যবহার করে। অ্যাকাউন্ট মুছলে সবখান থেকে মুছে যায়।</p>
 
       <h2>কী মুছে যাবে</h2>
       <ul>
         <li>প্রোফাইল (নাম, ফোন নম্বর বা ইমেইল) আর লগইন।</li>
         <li>Pomodoro এর টাস্ক, পড়ার সেশন আর লিডারবোর্ডের ঘর; স্টাডি গ্রুপে নিজের পাঠানো মেসেজ।</li>
         <li>Money এর সব হিসাব: লেনদেন, বাজেট, ধার-দেনা, সঞ্চয়ের লক্ষ্য, recurring।</li>
-        <li>AdMCQ এর প্রশ্ন সমাধান, ভুল, বুকমার্ক, পরীক্ষার ফল আর কোর্সে ভর্তি।</li>
+        <li>একই অ্যাকাউন্টে থাকা Shongi Lab এর অন্য অ্যাপের সব ডাটা।</li>
         <li>মাছরাঙা Telegram বটের সাথে এই অ্যাকাউন্টের যোগ, আর অ্যাপ থেকে বটে রাখা টাইমার ও রিমাইন্ডার।</li>
       </ul>
       <p>সাথে সাথে মূল ডাটাবেস থেকে মুছে যায়; ফেরানো যায় না। Telegram বটের নিজের অ্যাকাউন্ট আলাদা সেবা; সেটা বটে লিখে মুছতে পারেন।</p>
