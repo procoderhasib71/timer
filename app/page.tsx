@@ -22,6 +22,7 @@ import { useFocusStats } from "@/hooks/useFocusStats";
 import { tap } from "@/lib/haptics";
 import { readSettings } from "@/lib/settings";
 import { useLang } from "@/lib/i18n";
+import { quoteOfTheDay } from "@/lib/motivation";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
@@ -1036,6 +1037,15 @@ export default function PomodoroPage() {
       <p className="relative mt-3 h-4 text-[11px] font-semibold text-slate-400">
         {isInitialState ? (mode === 'pomodoro' ? t("শুরু চাপো, ফোন সরিয়ে রাখো", "Press start and put your phone away") : t("একটু হাঁটো, পানি খাও", "Stretch and drink some water")) : isPausedState ? t("চালিয়ে যেতে চাপো", "Tap to continue") : ""}
       </p>
+      {/* টাইমারের নিচে আজকের অনুপ্রেরণা: দিনে একটাই, রোজ বদলায় */}
+      {hour !== null && (() => {
+        const q = quoteOfTheDay();
+        return (
+          <p className="relative mt-3 px-8 max-w-sm text-center text-[12.5px] leading-relaxed font-medium italic text-slate-500 dark:text-slate-400">
+            “{t(q.bn, q.en)}”
+          </p>
+        );
+      })()}
       {celebrate && renderCelebration()}
     </div>
   );
