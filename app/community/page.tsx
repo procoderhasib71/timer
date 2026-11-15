@@ -11,6 +11,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
 import { weekId } from "@/lib/leaderboard";
+import { AVATARS, COLORS, AvatarBadge, loadMyAvatar, type Look } from "@/lib/avatar";
 import { CHAT_THEMES } from "./themes";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
@@ -20,15 +21,11 @@ import {
 interface Message { id: string; type?: string; themeId?: string; text: string; uid: string; displayName: string; photoURL: string | null; createdAt: Timestamp | null }
 interface Group { id: string; name: string; description: string; icon?: string; color?: string; privacy?: "open" | "closed"; ownerUid?: string; ownerName?: string }
 interface Member { uid: string; name: string; photoURL: string | null; role: "owner" | "member"; avatar?: string; avColor?: string }
-interface JoinRequest { uid: string; name: string; photoURL: string | null; note: string }
+interface JoinRequest { uid: string; name: string; photoURL: string | null; note: string; avatar?: string; avColor?: string }
 type Status = "owner" | "member" | "pending" | "none";
 
 // গ্রুপের লোগো: আইকন আর রং বেছে নেওয়া যায় (না থাকলে # আর বেগুনি)
 const ICONS: Record<string, LucideIcon> = { hash: Hash, book: BookOpen, cap: GraduationCap, steth: Stethoscope, flask: FlaskConical, brain: Brain, rocket: Rocket, flame: Flame, trophy: Trophy, target: Target, atom: Atom, dna: Dna, bulb: Lightbulb, users: Users };
-const COLORS: Record<string, [string, string]> = {
-  indigo: ["#6366f1", "#8b5cf6"], rose: ["#f43f5e", "#fb923c"], emerald: ["#10b981", "#14b8a6"], sky: ["#0ea5e9", "#6366f1"],
-  amber: ["#f59e0b", "#ef4444"], pink: ["#ec4899", "#a855f7"], teal: ["#14b8a6", "#0ea5e9"], slate: ["#475569", "#1e293b"],
-};
 // চ্যাটের থিম (themes.ts): পুরো গ্রুপের একটাই, যে কেউ বদলালে সবার বদলে যায় আর চ্যাটে লেখা আসে (communities/{id}/settings/theme)
 
 function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; size?: number }) {
@@ -42,26 +39,7 @@ function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; 
 }
 
 const messagesPath = (g: Group) => ["communities", g.id, "messages"] as [string, string, string];
-// গ্রুপের নিজের অবতার: সদস্য ইমোজি আর রং বাছতে পারে (না বাছলে নামের প্রথম অক্ষর বা Google ছবি)
-const AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦉", "🐬", "🦄", "🐙", "🦋", "🐢", "🚀", "⭐", "🔥", "🌙", "🍀", "🎯", "📚", "🧠", "🎧", "☕", "🌸", "⚡"];
-type Look = { avatar?: string; avColor?: string };
-const avatarOf = (name: string, photo: string | null, cls = "w-8 h-8 text-xs", look?: Look) => {
-  if (look?.avatar) {
-    const [from, to] = COLORS[look.avColor || ""] || COLORS.indigo;
-    return (
-      <div className={`${cls} rounded-full flex items-center justify-center shrink-0 shadow-sm overflow-hidden`} style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
-        <span className="leading-none" style={{ fontSize: "1.15em" }}>{look.avatar}</span>
-      </div>
-    );
-  }
-  return (
-    <div className={`${cls} rounded-full bg-indigo-500 text-white flex items-center justify-center shrink-0 font-bold shadow-sm overflow-hidden`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {photo ? <img src={photo} alt={name} className="w-full h-full object-cover" /> : (name.trim().charAt(0) || "?").toUpperCase()}
-    </div>
-  );
-};
-
+const avatarOf = (name: string, photo: string | null, cls = "w-8 h-8 text-xs", look?: Look) => <AvatarBadge name={name} photo={photo} cls={cls} look={look} />;
 
 export default function CommunityPage() {
   const { account } = useAccount();
@@ -78,6 +56,9 @@ export default function CommunityPage() {
   const [bgPicker, setBgPicker] = useState(false);
   const [chatTab, setChatTab] = useState<"chat" | "rank">("chat");
   const [themeId, setThemeId] = useState("plain");
+  // প্রোফাইলে বাছা অবতার: গ্রুপে ঢোকার সময় এটাই বসে
+  const [myLook, setMyLook] = useState<Look>({});
+  useEffect(() => { if (me) void loadMyAvatar(me.uid).then(setMyLook); }, [me]);
   const th = CHAT_THEMES.find((b) => b.id === themeId) ?? CHAT_THEMES[0];
   const themed = th.id !== "plain";
   // থিম বাছা থাকলে হেডার, ট্যাব আর নিচের বার থিমের রঙে (না বাছলে আগের মতো, আলো/অন্ধকার মোড মেনে)
@@ -138,7 +119,7 @@ export default function CommunityPage() {
   const joinOpen = async (g: Group) => {
     if (!me) return;
     try {
-      await setDoc(doc(db, "communities", g.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "member", joinedAt: serverTimestamp() });
+      await setDoc(doc(db, "communities", g.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "member", joinedAt: serverTimestamp(), ...(myLook.avatar ? { avatar: myLook.avatar, avColor: myLook.avColor || "indigo" } : {}) });
       setStatus((st) => ({ ...st, [g.id]: "member" }));
       setActive(g);
     } catch { flash(t("জয়েন করা যায়নি, আবার চেষ্টা করো", "Couldn't join, try again")); }
@@ -178,7 +159,7 @@ export default function CommunityPage() {
     const ref = doc(collection(db, "communities"));
     const batch = writeBatch(db);
     batch.set(ref, { name: name.trim(), description: description.trim(), icon, color, privacy, ownerUid: me.uid, ownerName: myName, createdAt: serverTimestamp() });
-    batch.set(doc(db, "communities", ref.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "owner", joinedAt: serverTimestamp() });
+    batch.set(doc(db, "communities", ref.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "owner", joinedAt: serverTimestamp(), ...(myLook.avatar ? { avatar: myLook.avatar, avColor: myLook.avColor || "indigo" } : {}) });
     try {
       await batch.commit();
       setCreating(false);
@@ -191,7 +172,7 @@ export default function CommunityPage() {
   const sendRequest = async (g: Group, note: string) => {
     if (!me) return;
     try {
-      await setDoc(doc(db, "communities", g.id, "requests", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, note: note.trim().slice(0, 200), createdAt: serverTimestamp() });
+      await setDoc(doc(db, "communities", g.id, "requests", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, note: note.trim().slice(0, 200), createdAt: serverTimestamp(), ...(myLook.avatar ? { avatar: myLook.avatar, avColor: myLook.avColor || "indigo" } : {}) });
       setStatus((s) => ({ ...s, [g.id]: "pending" }));
       flash(t("অনুরোধ পাঠানো হয়েছে, মালিক মেনে নিলে জানতে পারবে", "Request sent. You'll get in once the owner accepts"));
     } catch { flash(t("অনুরোধ পাঠানো যায়নি", "Couldn't send the request")); }
@@ -367,7 +348,7 @@ export default function CommunityPage() {
         )}
 
         {panel && (
-          <MembersPanel group={active} isOwner={st === "owner"} me={me} onClose={() => setPanel(false)} onPrivacy={(p) => setActive({ ...active, privacy: p })} onLeave={() => leaveGroup(active)} onDelete={() => deleteGroup(active)} flash={flash} t={t} n={n} />
+          <MembersPanel group={active} isOwner={st === "owner"} me={me} onClose={() => setPanel(false)} myLook={myLook} onPrivacy={(p) => setActive({ ...active, privacy: p })} onLeave={() => leaveGroup(active)} onDelete={() => deleteGroup(active)} flash={flash} t={t} n={n} />
         )}
         {bgPicker && (
           <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
@@ -560,8 +541,8 @@ function JoinCard({ group, status, onRequest, onCancel, t, n }: { group: Group; 
   );
 }
 
-function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelete, flash, t, n }: {
-  group: Group; isOwner: boolean; me: User | null; onClose: () => void; onPrivacy: (p: "open" | "closed") => void; onLeave: () => void; onDelete: () => void; flash: (m: string) => void; t: TFn; n: NFn;
+function MembersPanel({ group, isOwner, me, myLook, onClose, onPrivacy, onLeave, onDelete, flash, t, n }: {
+  group: Group; isOwner: boolean; me: User | null; myLook: Look; onClose: () => void; onPrivacy: (p: "open" | "closed") => void; onLeave: () => void; onDelete: () => void; flash: (m: string) => void; t: TFn; n: NFn;
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
@@ -578,7 +559,7 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
   const accept = async (r: JoinRequest) => {
     try {
       const b = writeBatch(db);
-      b.set(doc(db, "communities", group.id, "members", r.uid), { uid: r.uid, name: r.name, photoURL: r.photoURL || null, role: "member", joinedAt: serverTimestamp() });
+      b.set(doc(db, "communities", group.id, "members", r.uid), { uid: r.uid, name: r.name, photoURL: r.photoURL || null, role: "member", joinedAt: serverTimestamp(), ...(r.avatar ? { avatar: r.avatar, avColor: r.avColor || "indigo" } : {}) });
       b.delete(doc(db, "communities", group.id, "requests", r.uid));
       await b.commit();
       flash(t(`${r.name} গ্রুপে যোগ হলো`, `${r.name} joined the group`));
@@ -589,7 +570,7 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
 
   return (
     <div className="absolute inset-0 z-[100] flex justify-end bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      {editing && mine && <ProfileSheet group={group} member={mine} onClose={() => setEditing(false)} flash={flash} t={t} />}
+      {editing && mine && <ProfileSheet group={group} member={mine} myLook={myLook} onClose={() => setEditing(false)} flash={flash} t={t} />}
       <div className="absolute inset-0" onClick={onClose} />
       <div className="relative h-full w-[min(92vw,380px)] bg-white dark:bg-[#161b26] border-l border-slate-200 dark:border-white/10 flex flex-col pt-[calc(1rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-right duration-300">
         <div className="px-5 pb-3 flex items-center justify-between">
@@ -611,7 +592,7 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
                 {requests.map((r) => (
                   <div key={r.uid} className="rounded-2xl border border-slate-200 dark:border-white/10 p-3">
                     <div className="flex items-center gap-3">
-                      {avatarOf(r.name, r.photoURL, "w-9 h-9 text-sm")}
+                      {avatarOf(r.name, r.photoURL, "w-9 h-9 text-sm", r)}
                       <div className="flex-1 min-w-0"><p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{r.name}</p>{r.note && <p className="text-[11px] text-slate-500 line-clamp-2">{r.note}</p>}</div>
                       <button onClick={() => accept(r)} aria-label={t("মেনে নাও", "Accept")} className="press w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center"><Check size={17} /></button>
                       <button onClick={() => reject(r)} aria-label={t("বাদ দাও", "Reject")} className="press w-9 h-9 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 flex items-center justify-center"><X size={17} /></button>
@@ -738,7 +719,7 @@ function GroupRanking({ group, me, t, n }: { group: Group; me: User | null; t: T
 }
 
 // এই গ্রুপে নিজের নাম আর অবতার বদলানো (শুধু এই গ্রুপে দেখা যায়)
-function ProfileSheet({ group, member, onClose, flash, t }: { group: Group; member: Member; onClose: () => void; flash: (m: string) => void; t: TFn }) {
+function ProfileSheet({ group, member, myLook, onClose, flash, t }: { group: Group; member: Member; myLook: Look; onClose: () => void; flash: (m: string) => void; t: TFn }) {
   const [name, setName] = useState(member.name);
   const [avatar, setAvatar] = useState(member.avatar || "");
   const [color, setColor] = useState(member.avColor || "indigo");
@@ -770,6 +751,9 @@ function ProfileSheet({ group, member, onClose, flash, t }: { group: Group; memb
             <button key={e} type="button" onClick={() => setAvatar(e)} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-white/5"}`}>{e}</button>
           ))}
         </div>
+        {myLook.avatar && (avatar !== myLook.avatar || color !== (myLook.avColor || "indigo")) && (
+          <button type="button" onClick={() => { setAvatar(myLook.avatar || ""); setColor(myLook.avColor || "indigo"); }} className="mt-3 text-xs font-bold text-indigo-600 dark:text-indigo-300 underline">{t("প্রোফাইলের অবতারটা নাও", "Use my profile avatar")} {myLook.avatar}</button>
+        )}
         {avatar && (
           <div className="mt-3 flex flex-wrap gap-2.5">
             {Object.entries(COLORS).map(([k, [f, e]]) => (

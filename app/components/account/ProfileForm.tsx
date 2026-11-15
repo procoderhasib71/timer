@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { User, Save, School, Loader2, Check } from "lucide-react";
 import { auth } from "@/lib/firebaseClient";
 import { saveAccount } from "@/lib/admcqAccount";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import BotLink from "@/app/components/shared/BotLink";
 import { useLang } from "@/lib/i18n";
+import { AVATARS, COLORS, AvatarBadge, loadMyAvatar, saveMyAvatar, type Look } from "@/lib/avatar";
 
 // প্রোফাইল AdMCQ আর Money এর সাথে এক (AdMCQ এর ডাটাবেসে থাকে); অন্য জায়গায় পূরণ করা থাকলে এখানে আগে থেকেই বসানো।
 const LEVELS: [string, string, string][] = [
@@ -31,6 +32,8 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
     institution: account?.institution || "",
     hscBatch: account?.hscBatch || "",
   });
+  const [look, setLook] = useState<Look>({});
+  useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then(setLook); }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -44,6 +47,7 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
     setBusy(true);
     try {
       const r = await saveAccount(auth, f);
+      if (auth.currentUser) await saveMyAvatar(auth.currentUser.uid, look).catch(() => undefined);
       setAccount(r.account);
       if (!onSaved) return window.location.replace("/");
       setBusy(false);
@@ -64,6 +68,25 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
       </div>
 
       <form onSubmit={handleSaveProfile} className="space-y-6">
+        <div className={box}>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">{t("অবতার", "Avatar")}</h2>
+          <div className="flex justify-center"><AvatarBadge name={f.name || "?"} photo={auth.currentUser?.photoURL} look={look} cls="w-20 h-20 text-3xl" /></div>
+          <div className="grid grid-cols-7 gap-2">
+            <button type="button" onClick={() => setLook({ ...look, avatar: "" })} className={`aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold transition-all ${!look.avatar ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-900/80"}`}>{t("ছবি", "Photo")}</button>
+            {AVATARS.map((e) => (
+              <button key={e} type="button" onClick={() => setLook({ avatar: e, avColor: look.avColor || "indigo" })} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${look.avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-slate-900/80"}`}>{e}</button>
+            ))}
+          </div>
+          {look.avatar && (
+            <div className="flex flex-wrap gap-2.5">
+              {Object.entries(COLORS).map(([k, [from, to]]) => (
+                <button key={k} type="button" onClick={() => setLook({ ...look, avColor: k })} aria-label={k} className={`w-7 h-7 rounded-full transition-transform ${(look.avColor || "indigo") === k ? "ring-2 ring-offset-2 ring-slate-400 dark:ring-white/60 ring-offset-white dark:ring-offset-slate-800 scale-110" : ""}`} style={{ background: `linear-gradient(135deg, ${from}, ${to})` }} />
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-slate-400">{t("কমিউনিটি গ্রুপে ঢুকলে এই অবতারটাই দেখাবে। \"ছবি\" বাছলে Google ছবি বা নামের প্রথম অক্ষর।", "This shows up when you join community groups. \"Photo\" uses your Google picture or initial.")}</p>
+        </div>
+
         <div className={box}>
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">{t("সাধারণ তথ্য", "Basic Info")}</h2>
           <div className="space-y-1.5">

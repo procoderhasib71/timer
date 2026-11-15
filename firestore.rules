@@ -55,7 +55,9 @@ service cloud.firestore {
         allow read: if request.auth != null;
         // নিজেকে মালিক হিসেবে (গ্রুপ বানানোর সাথে একই ব্যাচে) অথবা মালিক অন্য কাউকে সদস্য করছে
         allow create: if request.auth != null
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'role', 'joinedAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'role', 'joinedAt', 'avatar', 'avColor'])
+          && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 8))
+          && (!('avColor' in request.resource.data) || (request.resource.data.avColor is string && request.resource.data.avColor.size() <= 20))
           && request.resource.data.uid == uid
           && ((uid == request.auth.uid && request.resource.data.role == 'owner'
                 && getAfter(/databases/$(database)/documents/communities/$(gid)).data.ownerUid == request.auth.uid)
@@ -76,7 +78,9 @@ service cloud.firestore {
       match /requests/{uid} {
         allow read: if request.auth != null && (uid == request.auth.uid || isOwnerOf(gid));
         allow create: if request.auth != null && uid == request.auth.uid
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'note', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'note', 'createdAt', 'avatar', 'avColor'])
+          && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 8))
+          && (!('avColor' in request.resource.data) || (request.resource.data.avColor is string && request.resource.data.avColor.size() <= 20))
           && request.resource.data.uid == uid
           && request.resource.data.note is string && request.resource.data.note.size() <= 200
           && !isMemberOf(gid);
