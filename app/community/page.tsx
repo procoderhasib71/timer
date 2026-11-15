@@ -64,6 +64,11 @@ export default function CommunityPage() {
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
   useEffect(() => onAuthStateChanged(auth, setMe), []);
+  useEffect(() => {
+    if (!active) return;
+    document.body.setAttribute("data-chat-open", "");
+    return () => document.body.removeAttribute("data-chat-open");
+  }, [active]);
 
   // সব গ্রুপের তালিকা
   useEffect(() => {

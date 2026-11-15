@@ -59,3 +59,5 @@ html, body {
   color: var(--foreground);
   font-family: var(--font-inter), var(--font-bangla), ui-sans-serif, system-ui, sans-serif;
 }
+/* গ্রুপের চ্যাট খোলা থাকলে নিচের মেনু লুকাই, নইলে মেসেজ লেখার ঘরের ওপর চেপে বসে */
+body[data-chat-open] [data-bottom-nav] { display: none; }

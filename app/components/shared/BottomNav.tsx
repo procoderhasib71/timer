@@ -24,7 +24,7 @@ export default function BottomNav() {
   const activeIdx = navItems.findIndex((i) => !i.sheet && i.href === pathname);
 
   return (
-    <nav
+    <nav data-bottom-nav
       // নিচ থেকে ভাসানো মেনু; বাছা জায়গার পেছনে নরম পিল, অন্যটায় চাপলে মসৃণভাবে সরে যায়
       className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[92%] max-w-[400px] z-50 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-white/[0.07] rounded-[22px] shadow-[0_12px_32px_-12px_rgba(15,23,42,0.18)] dark:shadow-black/40 ${
         isAuthPage ? "hidden" : "block"
