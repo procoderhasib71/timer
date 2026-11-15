@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, Palette, Medal, Lock, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, Palette, Medal, Lock, Pencil, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, type User } from "firebase/auth";
@@ -19,7 +19,7 @@ import {
 
 interface Message { id: string; text: string; uid: string; displayName: string; photoURL: string | null; createdAt: Timestamp | null }
 interface Group { id: string; name: string; description: string; icon?: string; color?: string; privacy?: "open" | "closed"; ownerUid?: string; ownerName?: string }
-interface Member { uid: string; name: string; photoURL: string | null; role: "owner" | "member" }
+interface Member { uid: string; name: string; photoURL: string | null; role: "owner" | "member"; avatar?: string; avColor?: string }
 interface JoinRequest { uid: string; name: string; photoURL: string | null; note: string }
 type Status = "owner" | "member" | "pending" | "none";
 
@@ -43,12 +43,26 @@ function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; 
 }
 
 const messagesPath = (g: Group) => ["communities", g.id, "messages"] as [string, string, string];
-const avatarOf = (name: string, photo: string | null, cls = "w-8 h-8 text-xs") => (
-  <div className={`${cls} rounded-full bg-indigo-500 text-white flex items-center justify-center shrink-0 font-bold shadow-sm overflow-hidden`}>
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    {photo ? <img src={photo} alt={name} className="w-full h-full object-cover" /> : (name.trim().charAt(0) || "?").toUpperCase()}
-  </div>
-);
+// গ্রুপের নিজের অবতার: সদস্য ইমোজি আর রং বাছতে পারে (না বাছলে নামের প্রথম অক্ষর বা Google ছবি)
+const AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦉", "🐬", "🦄", "🐙", "🦋", "🐢", "🚀", "⭐", "🔥", "🌙", "🍀", "🎯", "📚", "🧠", "🎧", "☕", "🌸", "⚡"];
+type Look = { avatar?: string; avColor?: string };
+const avatarOf = (name: string, photo: string | null, cls = "w-8 h-8 text-xs", look?: Look) => {
+  if (look?.avatar) {
+    const [from, to] = COLORS[look.avColor || ""] || COLORS.indigo;
+    return (
+      <div className={`${cls} rounded-full flex items-center justify-center shrink-0 shadow-sm overflow-hidden`} style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
+        <span className="leading-none" style={{ fontSize: "1.15em" }}>{look.avatar}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={`${cls} rounded-full bg-indigo-500 text-white flex items-center justify-center shrink-0 font-bold shadow-sm overflow-hidden`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {photo ? <img src={photo} alt={name} className="w-full h-full object-cover" /> : (name.trim().charAt(0) || "?").toUpperCase()}
+    </div>
+  );
+};
+
 
 export default function CommunityPage() {
   const { account } = useAccount();
@@ -211,8 +225,14 @@ export default function CommunityPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  // গ্রুপের সদস্যদের এখনকার নাম আর অবতার (মেসেজে সবসময় সর্বশেষটা দেখাই)
+  const [roster, setRoster] = useState<Record<string, Member>>({});
   const canChat = Boolean(active && (status[active.id] === "owner" || status[active.id] === "member"));
 
+  useEffect(() => {
+    if (!active || !canChat) return;
+    return onSnapshot(collection(db, "communities", active.id, "members"), (s) => setRoster(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as Member]))), () => undefined);
+  }, [active, canChat]);
   useEffect(() => {
     if (!active || !me || !canChat) return;
     const q = query(collection(db, ...messagesPath(active)), orderBy("createdAt", "desc"), limit(50));
@@ -294,9 +314,9 @@ export default function CommunityPage() {
                 return (
                   <div key={msg.id} className={`flex w-full ${isMe ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2`}>
                     <div className={`flex max-w-[80%] ${isMe ? "flex-row-reverse" : "flex-row"} gap-2`}>
-                      {!isMe && first ? avatarOf(msg.displayName, msg.photoURL) : <div className="w-8 h-8 shrink-0" />}
+                      {!isMe && first ? avatarOf(roster[msg.uid]?.name || msg.displayName, roster[msg.uid]?.photoURL ?? msg.photoURL, "w-8 h-8 text-xs", roster[msg.uid]) : <div className="w-8 h-8 shrink-0" />}
                       <div className="flex flex-col min-w-0">
-                        {!isMe && first && <span style={subSt} className="text-[10px] font-bold text-slate-500 mb-1 ml-1">{msg.displayName}</span>}
+                        {!isMe && first && <span style={subSt} className="text-[10px] font-bold text-slate-500 mb-1 ml-1">{roster[msg.uid]?.name || msg.displayName}</span>}
                         <div style={themed ? (isMe ? { background: th.accent } : { background: th.other, color: th.otherInk, borderColor: th.line }) : undefined} className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words ${isMe ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-200 rounded-tl-sm"}`}>{msg.text}</div>
                         <span style={subSt} className={`text-[9px] font-medium mt-1 text-slate-400 ${isMe ? "text-right mr-1" : "ml-1"}`}>{msgTime(msg.createdAt)}</span>
                       </div>
@@ -523,6 +543,8 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
   const [members, setMembers] = useState<Member[]>([]);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const mine = members.find((m) => m.uid === me?.uid);
 
   useEffect(() => onSnapshot(collection(db, "communities", group.id, "members"), (s) => setMembers(s.docs.map((d) => d.data() as Member)), () => undefined), [group.id]);
   useEffect(() => {
@@ -544,6 +566,7 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
 
   return (
     <div className="absolute inset-0 z-[100] flex justify-end bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {editing && mine && <ProfileSheet group={group} member={mine} onClose={() => setEditing(false)} flash={flash} t={t} />}
       <div className="absolute inset-0" onClick={onClose} />
       <div className="relative h-full w-[min(92vw,380px)] bg-white dark:bg-[#161b26] border-l border-slate-200 dark:border-white/10 flex flex-col pt-[calc(1rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-right duration-300">
         <div className="px-5 pb-3 flex items-center justify-between">
@@ -551,6 +574,13 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
           <button onClick={onClose} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-5">
+          {mine && (
+            <button onClick={() => setEditing(true)} className="press w-full rounded-2xl border border-slate-200 dark:border-white/10 p-3 flex items-center gap-3 text-left">
+              {avatarOf(mine.name, mine.photoURL, "w-11 h-11 text-base", mine)}
+              <span className="flex-1 min-w-0"><span className="block text-[10px] font-extrabold uppercase tracking-wider text-indigo-500 dark:text-indigo-300">{t("এই গ্রুপে আমি", "Me in this group")}</span><span className="block text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{mine.name}</span></span>
+              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1"><Pencil size={12} />{t("বদলাও", "Edit")}</span>
+            </button>
+          )}
           {isOwner && requests.length > 0 && (
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-rose-500 mb-2">{t("জয়েন অনুরোধ", "Join requests")} · {n(requests.length)}</p>
@@ -573,8 +603,9 @@ function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelet
             <div className="space-y-1">
               {[...members].sort((a, b) => (a.role === "owner" ? -1 : 0) - (b.role === "owner" ? -1 : 0)).map((m) => (
                 <div key={m.uid} className="flex items-center gap-3 py-2">
-                  {avatarOf(m.name, m.photoURL, "w-9 h-9 text-sm")}
+                  {avatarOf(m.name, m.photoURL, "w-9 h-9 text-sm", m)}
                   <p className="flex-1 min-w-0 text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{m.name}{m.uid === me?.uid && <span className="text-slate-400 font-medium"> ({t("তুমি", "you")})</span>}</p>
+                  {m.uid === me?.uid && <button onClick={() => setEditing(true)} aria-label={t("আমার প্রোফাইল বদলাও", "Edit my profile")} className="press p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300"><Pencil size={14} /></button>}
                   {m.role === "owner" ? <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-full flex items-center gap-1"><Crown size={11} />{t("মালিক", "Owner")}</span>
                     : isOwner && <button onClick={() => kick(m)} className="text-[11px] font-bold text-rose-500 px-2 py-1">{t("বের করো", "Remove")}</button>}
                 </div>
@@ -666,7 +697,7 @@ function GroupRanking({ group, me, t, n }: { group: Group; me: User | null; t: T
             return (
               <div key={r.m.uid} className={`surface rounded-2xl px-3.5 py-3 flex items-center gap-3 ${r.m.uid === me?.uid ? "!border-indigo-400/60" : ""}`}>
                 <span className={`w-6 text-center text-sm font-extrabold tabular-nums ${rank > 0 && rank <= 3 ? medal[rank - 1] : "text-slate-400"}`}>{rank > 0 ? n(rank) : "–"}</span>
-                {avatarOf(r.m.name, r.m.photoURL, "w-9 h-9 text-sm")}
+                {avatarOf(r.m.name, r.m.photoURL, "w-9 h-9 text-sm", r.m)}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{r.m.name}{r.m.uid === me?.uid && <span className="text-slate-400 font-medium"> ({t("তুমি", "you")})</span>}</p>
                   <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 dark:bg-white/[0.06] overflow-hidden">
@@ -679,6 +710,53 @@ function GroupRanking({ group, me, t, n }: { group: Group; me: User | null; t: T
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// এই গ্রুপে নিজের নাম আর অবতার বদলানো (শুধু এই গ্রুপে দেখা যায়)
+function ProfileSheet({ group, member, onClose, flash, t }: { group: Group; member: Member; onClose: () => void; flash: (m: string) => void; t: TFn }) {
+  const [name, setName] = useState(member.name);
+  const [avatar, setAvatar] = useState(member.avatar || "");
+  const [color, setColor] = useState(member.avColor || "indigo");
+  const [busy, setBusy] = useState(false);
+  const ok = name.trim().length >= 1 && !busy;
+  const save = async () => {
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, "communities", group.id, "members", member.uid), { name: name.trim().slice(0, 40), avatar, avColor: color });
+      onClose();
+    } catch { flash(t("সেভ করা যায়নি, আবার চেষ্টা করো", "Couldn't save, try again")); setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[300] flex items-end justify-center bg-slate-900/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white dark:bg-[#161b26] rounded-t-[28px] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] border-t border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom duration-300 max-h-[90dvh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("এই গ্রুপে আমার প্রোফাইল", "My profile in this group")}</h2>
+          <button onClick={onClose} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
+        </div>
+        <div className="flex justify-center mb-4">{avatarOf(name || "?", member.photoURL, "w-20 h-20 text-3xl", { avatar, avColor: color })}</div>
+        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("গ্রুপে আমার নাম", "Name in this group")}</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40}
+          className="mt-1 mb-4 w-full bg-slate-100 dark:bg-white/5 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400/50" />
+        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("অবতার", "Avatar")}</label>
+        <div className="mt-2 grid grid-cols-7 gap-2">
+          <button type="button" onClick={() => setAvatar("")} className={`aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold transition-all ${!avatar ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-white/5 text-slate-500"}`}>{t("ছবি", "Photo")}</button>
+          {AVATARS.map((e) => (
+            <button key={e} type="button" onClick={() => setAvatar(e)} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-white/5"}`}>{e}</button>
+          ))}
+        </div>
+        {avatar && (
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            {Object.entries(COLORS).map(([k, [f, e]]) => (
+              <button key={k} type="button" onClick={() => setColor(k)} aria-label={k} className={`w-7 h-7 rounded-full transition-transform ${color === k ? "ring-2 ring-offset-2 ring-slate-400 dark:ring-white/60 ring-offset-white dark:ring-offset-[#161b26] scale-110" : ""}`} style={{ background: `linear-gradient(135deg, ${f}, ${e})` }} />
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-slate-400 mt-3">{t("এটা শুধু এই গ্রুপের সদস্যরা দেখবে। \"ছবি\" বাছলে তোমার Google ছবি (বা নামের প্রথম অক্ষর) দেখাবে।", "Only members of this group see this. \"Photo\" shows your Google picture (or your initial).")}</p>
+        <button disabled={!ok} onClick={save} className={`press mt-4 w-full py-3.5 rounded-2xl text-sm font-extrabold transition-all ${ok ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" : "bg-slate-200 dark:bg-white/5 text-slate-400"}`}>{busy ? t("সেভ হচ্ছে...", "Saving...") : t("সেভ করো", "Save")}</button>
+      </div>
     </div>
   );
 }

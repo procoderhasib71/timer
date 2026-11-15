@@ -63,6 +63,12 @@ service cloud.firestore {
               // খোলা গ্রুপে যে কেউ নিজে সরাসরি ঢুকতে পারে
               || (uid == request.auth.uid && request.resource.data.role == 'member'
                   && get(/databases/$(database)/documents/communities/$(gid)).data.get('privacy', 'closed') == 'open'));
+        // সদস্য শুধু নিজের নাম আর অবতার বদলাতে পারে (পদ, ছবি, যোগের সময় নয়)
+        allow update: if request.auth != null && uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'avColor'])
+          && request.resource.data.name is string && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 40
+          && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 8))
+          && (!('avColor' in request.resource.data) || (request.resource.data.avColor is string && request.resource.data.avColor.size() <= 20));
         allow delete: if request.auth != null
           && ((uid == request.auth.uid && resource.data.role != 'owner') || isOwnerOf(gid));
       }
