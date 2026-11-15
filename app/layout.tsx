@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { Hind_Siliguri, Plus_Jakarta_Sans } from "next/font/google";
+import { Noto_Sans_Bengali, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import AuthGate from "./components/shared/AuthGate";
 import { ThemeProvider } from "./components/shared/ThemeProvider";
@@ -14,9 +14,10 @@ import { AccountSheetProvider } from "./components/account/AccountSheet";
 import PageFade from "./components/shared/PageFade";
 import { LangProvider } from "@/lib/i18n";
 
-// ইংরেজি Plus Jakarta Sans (সংখ্যা আর শিরোনামে ঝকঝকে), বাংলা Hind Siliguri (প্রথমটায় বাংলা অক্ষর নেই, তাই পরেরটায় যায়)
+// ইংরেজি Plus Jakarta Sans (সংখ্যা আর শিরোনামে ঝকঝকে), বাংলা Noto Sans Bengali (প্রথমটায় বাংলা অক্ষর নেই, তাই পরেরটায় যায়)।
+// আগে Hind Siliguri ছিল: সেটার ৪০০ আর ৬০০ ওজনে "১" অঙ্কটা ছোট আর নিচু আঁকা হয় (১৫ দেখায় ৽৫), তাই বদলেছি
 const inter = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-inter" });
-const bangla = Hind_Siliguri({ subsets: ["bengali"], weight: ["400", "500", "600", "700"], variable: "--font-bangla" });
+const bangla = Noto_Sans_Bengali({ subsets: ["bengali"], variable: "--font-bangla" });
 
 // Money অ্যাপের মতো: উপরের বারের রং ফোনের লাইট/ডার্ক অনুযায়ী
 export const viewport: Viewport = {
