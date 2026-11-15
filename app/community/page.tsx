@@ -11,6 +11,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
 import { weekId } from "@/lib/leaderboard";
+import { CHAT_THEMES } from "./themes";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
   writeBatch, getCountFromServer, updateDoc, type Timestamp,
@@ -28,17 +29,7 @@ const COLORS: Record<string, [string, string]> = {
   indigo: ["#6366f1", "#8b5cf6"], rose: ["#f43f5e", "#fb923c"], emerald: ["#10b981", "#14b8a6"], sky: ["#0ea5e9", "#6366f1"],
   amber: ["#f59e0b", "#ef4444"], pink: ["#ec4899", "#a855f7"], teal: ["#14b8a6", "#0ea5e9"], slate: ["#475569", "#1e293b"],
 };
-// চ্যাটের পেছনের ছবি: নিজের পছন্দ, এই ফোনে মনে থাকে (সব গ্রুপে একই)
-const CHAT_BGS: { id: string; bn: string; en: string; css: React.CSSProperties }[] = [
-  { id: "plain", bn: "সাদামাটা", en: "Plain", css: {} },
-  { id: "dots", bn: "বিন্দু", en: "Dots", css: { backgroundImage: "radial-gradient(rgba(99,102,241,.22) 1.2px, transparent 1.2px)", backgroundSize: "18px 18px" } },
-  { id: "grid", bn: "খাতা", en: "Grid", css: { backgroundImage: "linear-gradient(rgba(100,116,139,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,.14) 1px, transparent 1px)", backgroundSize: "24px 24px" } },
-  { id: "aurora", bn: "অরোরা", en: "Aurora", css: { backgroundImage: "linear-gradient(160deg, rgba(99,102,241,.28), rgba(168,85,247,.18) 55%, rgba(236,72,153,.2))" } },
-  { id: "ocean", bn: "সাগর", en: "Ocean", css: { backgroundImage: "linear-gradient(170deg, rgba(14,165,233,.26), rgba(20,184,166,.2))" } },
-  { id: "forest", bn: "বন", en: "Forest", css: { backgroundImage: "linear-gradient(170deg, rgba(16,185,129,.26), rgba(132,204,22,.16))" } },
-  { id: "sunset", bn: "সূর্যাস্ত", en: "Sunset", css: { backgroundImage: "linear-gradient(170deg, rgba(251,146,60,.28), rgba(244,63,94,.2))" } },
-  { id: "night", bn: "রাত", en: "Night", css: { backgroundImage: "linear-gradient(180deg, rgba(15,23,42,.55), rgba(30,27,75,.5))" } },
-];
+// চ্যাটের থিম (themes.ts): নিজের পছন্দ, এই ফোনে মনে থাকে (সব গ্রুপে একই)
 const BG_KEY = "pomodoro_chat_bg";
 
 function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; size?: number }) {
@@ -77,7 +68,13 @@ export default function CommunityPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage শুধু ব্রাউজারে, মাউন্টের পর পড়ি
   useEffect(() => { try { const v = localStorage.getItem(BG_KEY); if (v) setBg(v); } catch { /* প্রাইভেট মোড */ } }, []);
   const pickBg = (id: string) => { setBg(id); try { localStorage.setItem(BG_KEY, id); } catch { /* প্রাইভেট মোড */ } };
-  const bgCss = CHAT_BGS.find((b) => b.id === bg)?.css || {};
+  const th = CHAT_THEMES.find((b) => b.id === bg) ?? CHAT_THEMES[0];
+  const themed = th.id !== "plain";
+  // থিম বাছা থাকলে হেডার, ট্যাব আর নিচের বার থিমের রঙে (না বাছলে আগের মতো, আলো/অন্ধকার মোড মেনে)
+  const barSt: React.CSSProperties | undefined = themed ? { background: th.bar, borderColor: th.line, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : undefined;
+  const inkSt: React.CSSProperties | undefined = themed ? { color: th.ink } : undefined;
+  const subSt: React.CSSProperties | undefined = themed ? { color: th.sub } : undefined;
+  const chipSt: React.CSSProperties | undefined = themed ? { background: th.chip, color: th.ink } : undefined;
   const [toast, setToast] = useState("");
 
   const myName = account?.name || me?.displayName || t("একজন ছাত্র", "A student");
@@ -243,19 +240,19 @@ export default function CommunityPage() {
     const st: Status = status[active.id] || "none";
     return (
       <div className="w-full h-[calc(100dvh-env(safe-area-inset-bottom))] flex flex-col bg-slate-50 dark:bg-[#0f172a] relative">
-        <div className="px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between gap-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
+        <div style={barSt} className="px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between gap-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
           <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => { setActive(null); setPanel(false); setChatTab("chat"); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
+            <button style={inkSt} onClick={() => { setActive(null); setPanel(false); setChatTab("chat"); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
             <GroupLogo icon={active.icon} color={active.color} size={40} />
             <div className="min-w-0">
-              <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">{active.name}</h1>
-              <p className="text-[10px] font-medium text-slate-500 line-clamp-1">{desc(active) || t("কমিউনিটি গ্রুপ", "Community group")}</p>
+              <h1 style={inkSt} className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">{active.name}</h1>
+              <p style={subSt} className="text-[10px] font-medium text-slate-500 line-clamp-1">{desc(active) || t("কমিউনিটি গ্রুপ", "Community group")}</p>
             </div>
           </div>
           {(st === "owner" || st === "member") && (
             <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => setBgPicker(true)} aria-label={t("চ্যাটের ব্যাকগ্রাউন্ড", "Chat background")} className="press shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200"><Palette size={18} /></button>
-            <button onClick={() => setPanel(true)} aria-label={t("সদস্য", "Members")} className="press relative shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200">
+            <button style={chipSt} onClick={() => setBgPicker(true)} aria-label={t("চ্যাটের থিম", "Chat theme")} className="press shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200"><Palette size={18} /></button>
+            <button style={chipSt} onClick={() => setPanel(true)} aria-label={t("সদস্য", "Members")} className="press relative shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200">
               <Users size={18} />
               {(pending[active.id] || 0) > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center">{n(pending[active.id])}</span>}
             </button>
@@ -264,10 +261,10 @@ export default function CommunityPage() {
         </div>
 
         {canChat && (
-          <div className="px-4 py-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0">
-            <div className="p-1 rounded-xl bg-slate-100 dark:bg-white/5 grid grid-cols-2">
+          <div style={barSt} className="px-4 py-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0">
+            <div style={themed ? { background: th.chip } : undefined} className="p-1 rounded-xl bg-slate-100 dark:bg-white/5 grid grid-cols-2">
               {(["chat", "rank"] as const).map((k) => (
-                <button key={k} onClick={() => setChatTab(k)} className={`py-1.5 rounded-lg text-xs font-bold transition-all ${chatTab === k ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
+                <button key={k} onClick={() => setChatTab(k)} style={themed ? (chatTab === k ? { background: th.accent, color: "#fff" } : { color: th.sub }) : undefined} className={`py-1.5 rounded-lg text-xs font-bold transition-all ${chatTab === k ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
                   {k === "chat" ? t("চ্যাট", "Chat") : t("ফোকাস র‍্যাঙ্ক", "Focus ranking")}
                 </button>
               ))}
@@ -276,12 +273,12 @@ export default function CommunityPage() {
         )}
 
         {canChat && chatTab === "rank" ? (
-          <GroupRanking group={active} me={me} t={t} n={n} />
+          <div className="flex-1 min-h-0 flex flex-col" style={th.area}><GroupRanking group={active} me={me} t={t} n={n} /></div>
         ) : canChat ? (
           <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" style={bgCss}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" style={th.area}>
               <div className="flex justify-center my-6">
-                <div className="bg-slate-200/50 dark:bg-white/5 px-4 py-2 rounded-full text-xs font-medium text-slate-500 dark:text-slate-400 text-center">
+                <div style={themed ? { background: th.chip, color: th.sub } : undefined} className="bg-slate-200/50 dark:bg-white/5 px-4 py-2 rounded-full text-xs font-medium text-slate-500 dark:text-slate-400 text-center">
                   {t("স্বাগতম", "Welcome to")} <span className="font-bold">{active.name}</span> 🚀
                 </div>
               </div>
@@ -299,9 +296,9 @@ export default function CommunityPage() {
                     <div className={`flex max-w-[80%] ${isMe ? "flex-row-reverse" : "flex-row"} gap-2`}>
                       {!isMe && first ? avatarOf(msg.displayName, msg.photoURL) : <div className="w-8 h-8 shrink-0" />}
                       <div className="flex flex-col min-w-0">
-                        {!isMe && first && <span className="text-[10px] font-bold text-slate-500 mb-1 ml-1">{msg.displayName}</span>}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words ${isMe ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-200 rounded-tl-sm"}`}>{msg.text}</div>
-                        <span className={`text-[9px] font-medium mt-1 text-slate-400 ${isMe ? "text-right mr-1" : "ml-1"}`}>{msgTime(msg.createdAt)}</span>
+                        {!isMe && first && <span style={subSt} className="text-[10px] font-bold text-slate-500 mb-1 ml-1">{msg.displayName}</span>}
+                        <div style={themed ? (isMe ? { background: th.accent } : { background: th.other, color: th.otherInk, borderColor: th.line }) : undefined} className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm break-words ${isMe ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 text-slate-800 dark:text-slate-200 rounded-tl-sm"}`}>{msg.text}</div>
+                        <span style={subSt} className={`text-[9px] font-medium mt-1 text-slate-400 ${isMe ? "text-right mr-1" : "ml-1"}`}>{msgTime(msg.createdAt)}</span>
                       </div>
                     </div>
                   </div>
@@ -309,13 +306,13 @@ export default function CommunityPage() {
               })}
               <div ref={endRef} />
             </div>
-            <div className="bg-white dark:bg-[#1e293b] border-t border-slate-200 dark:border-white/5 p-4 shrink-0 z-30">
+            <div style={barSt} className="bg-white dark:bg-[#1e293b] border-t border-slate-200 dark:border-white/5 p-4 shrink-0 z-30">
               <form onSubmit={send} className="flex items-center gap-2">
-                <div className="flex-1 bg-slate-100 dark:bg-[#2a3850] rounded-full flex items-center px-4 py-1.5 border border-transparent focus-within:border-indigo-500/50 focus-within:bg-white dark:focus-within:bg-[#1e293b] transition-all">
+                <div style={themed ? { background: th.chip } : undefined} className="flex-1 bg-slate-100 dark:bg-[#2a3850] rounded-full flex items-center px-4 py-1.5 border border-transparent focus-within:border-indigo-500/50 focus-within:bg-white dark:focus-within:bg-[#1e293b] transition-all">
                   <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder={t("মেসেজ লেখো...", `Message #${active.name}...`)}
-                    className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 py-2.5" />
+                    style={inkSt} className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 py-2.5" />
                 </div>
-                <button type="submit" disabled={!text.trim()} aria-label={t("পাঠাও", "Send")}
+                <button type="submit" disabled={!text.trim()} aria-label={t("পাঠাও", "Send")} style={themed && text.trim() ? { background: th.accent } : undefined}
                   className={`p-3 rounded-full shrink-0 transition-all ${text.trim() ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 active:scale-95" : "bg-slate-200 dark:bg-[#2a3850] text-slate-400 cursor-not-allowed"}`}>
                   <Send size={20} className={text.trim() ? "ml-0.5" : ""} />
                 </button>
@@ -334,13 +331,18 @@ export default function CommunityPage() {
             <div className="fixed inset-0" onClick={() => setBgPicker(false)} />
             <div className="relative w-full max-w-lg bg-white dark:bg-[#161b26] rounded-t-[28px] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] border-t border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("চ্যাটের ব্যাকগ্রাউন্ড", "Chat background")}</h2>
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("চ্যাটের থিম", "Chat theme")}</h2>
                 <button onClick={() => setBgPicker(false)} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
               </div>
               <div className="grid grid-cols-4 gap-3">
-                {CHAT_BGS.map((b) => (
+                {CHAT_THEMES.map((b) => (
                   <button key={b.id} onClick={() => pickBg(b.id)} className="flex flex-col items-center gap-1.5">
-                    <span className={`w-full aspect-[3/4] rounded-2xl border-2 bg-slate-50 dark:bg-[#0f172a] transition-all ${bg === b.id ? "border-indigo-500 scale-105" : "border-slate-200 dark:border-white/10"}`} style={b.css} />
+                    <span className={`relative block w-full aspect-[3/4] rounded-2xl border-2 overflow-hidden bg-slate-50 dark:bg-[#0f172a] transition-all ${bg === b.id ? "border-indigo-500 scale-105" : "border-slate-200 dark:border-white/10"}`}>
+                      <span className="absolute left-0 top-0 block" style={{ ...b.area, width: "286%", height: "286%", transform: "scale(.35)", transformOrigin: "0 0" }} />
+                      {b.id !== "plain" && <span className="absolute inset-x-0 top-0 h-2.5" style={{ background: b.bar }} />}
+                      {b.id !== "plain" && <span className="absolute left-1.5 top-5 h-2.5 w-7 rounded-md" style={{ background: b.other }} />}
+                      {b.id !== "plain" && <span className="absolute right-1.5 top-9 h-2.5 w-6 rounded-md" style={{ background: b.accent }} />}
+                    </span>
                     <span className={`text-[11px] font-bold ${bg === b.id ? "text-indigo-600 dark:text-indigo-300" : "text-slate-500"}`}>{t(b.bn, b.en)}</span>
                   </button>
                 ))}
