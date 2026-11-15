@@ -17,7 +17,7 @@ import {
   writeBatch, getCountFromServer, updateDoc, type Timestamp,
 } from "firebase/firestore";
 
-interface Message { id: string; text: string; uid: string; displayName: string; photoURL: string | null; createdAt: Timestamp | null }
+interface Message { id: string; type?: string; themeId?: string; text: string; uid: string; displayName: string; photoURL: string | null; createdAt: Timestamp | null }
 interface Group { id: string; name: string; description: string; icon?: string; color?: string; privacy?: "open" | "closed"; ownerUid?: string; ownerName?: string }
 interface Member { uid: string; name: string; photoURL: string | null; role: "owner" | "member"; avatar?: string; avColor?: string }
 interface JoinRequest { uid: string; name: string; photoURL: string | null; note: string }
@@ -29,8 +29,7 @@ const COLORS: Record<string, [string, string]> = {
   indigo: ["#6366f1", "#8b5cf6"], rose: ["#f43f5e", "#fb923c"], emerald: ["#10b981", "#14b8a6"], sky: ["#0ea5e9", "#6366f1"],
   amber: ["#f59e0b", "#ef4444"], pink: ["#ec4899", "#a855f7"], teal: ["#14b8a6", "#0ea5e9"], slate: ["#475569", "#1e293b"],
 };
-// চ্যাটের থিম (themes.ts): নিজের পছন্দ, এই ফোনে মনে থাকে (সব গ্রুপে একই)
-const BG_KEY = "pomodoro_chat_bg";
+// চ্যাটের থিম (themes.ts): পুরো গ্রুপের একটাই, যে কেউ বদলালে সবার বদলে যায় আর চ্যাটে লেখা আসে (communities/{id}/settings/theme)
 
 function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; size?: number }) {
   const Icon = ICONS[icon || ""] || Hash;
@@ -78,11 +77,8 @@ export default function CommunityPage() {
   const [panel, setPanel] = useState(false);
   const [bgPicker, setBgPicker] = useState(false);
   const [chatTab, setChatTab] = useState<"chat" | "rank">("chat");
-  const [bg, setBg] = useState("plain");
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage শুধু ব্রাউজারে, মাউন্টের পর পড়ি
-  useEffect(() => { try { const v = localStorage.getItem(BG_KEY); if (v) setBg(v); } catch { /* প্রাইভেট মোড */ } }, []);
-  const pickBg = (id: string) => { setBg(id); try { localStorage.setItem(BG_KEY, id); } catch { /* প্রাইভেট মোড */ } };
-  const th = CHAT_THEMES.find((b) => b.id === bg) ?? CHAT_THEMES[0];
+  const [themeId, setThemeId] = useState("plain");
+  const th = CHAT_THEMES.find((b) => b.id === themeId) ?? CHAT_THEMES[0];
   const themed = th.id !== "plain";
   // থিম বাছা থাকলে হেডার, ট্যাব আর নিচের বার থিমের রঙে (না বাছলে আগের মতো, আলো/অন্ধকার মোড মেনে)
   const barSt: React.CSSProperties | undefined = themed ? { background: th.bar, borderColor: th.line, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : undefined;
@@ -214,6 +210,7 @@ export default function CommunityPage() {
       const [ms, rs] = await Promise.all([getDocs(collection(db, "communities", g.id, "members")), getDocs(collection(db, "communities", g.id, "requests"))]);
       const batch = writeBatch(db);
       [...ms.docs, ...rs.docs].forEach((d) => batch.delete(d.ref));
+      batch.delete(doc(db, "communities", g.id, "settings", "theme"));
       await batch.commit();
       await deleteDoc(doc(db, "communities", g.id));
       setPanel(false); setActive(null);
@@ -231,8 +228,23 @@ export default function CommunityPage() {
 
   useEffect(() => {
     if (!active || !canChat) return;
-    return onSnapshot(collection(db, "communities", active.id, "members"), (s) => setRoster(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as Member]))), () => undefined);
+    const off1 = onSnapshot(collection(db, "communities", active.id, "members"), (s) => setRoster(Object.fromEntries(s.docs.map((d) => [d.id, d.data() as Member]))), () => undefined);
+    const off2 = onSnapshot(doc(db, "communities", active.id, "settings", "theme"), (s) => setThemeId((s.data()?.theme as string) || "plain"), () => undefined);
+    return () => { off1(); off2(); };
   }, [active, canChat]);
+
+  // থিম বদলালে পুরো গ্রুপের বদলায় আর চ্যাটে "অমুক থিম বদলেছে" লেখা যায় (Messenger এর মতো)
+  const changeTheme = async (id: string) => {
+    if (!me || !active || id === themeId) { setBgPicker(false); return; }
+    try {
+      const b = writeBatch(db);
+      b.set(doc(db, "communities", active.id, "settings", "theme"), { theme: id, by: me.uid, byName: myName, at: serverTimestamp() });
+      b.set(doc(collection(db, "communities", active.id, "messages")), { type: "theme", themeId: id, text: "changed the theme", uid: me.uid, displayName: myName, photoURL: me.photoURL || null, createdAt: serverTimestamp() });
+      await b.commit();
+      setThemeId(id);
+      setBgPicker(false);
+    } catch { flash(t("থিম বদলানো যায়নি", "Couldn't change the theme")); }
+  };
   useEffect(() => {
     if (!active || !me || !canChat) return;
     const q = query(collection(db, ...messagesPath(active)), orderBy("createdAt", "desc"), limit(50));
@@ -262,7 +274,7 @@ export default function CommunityPage() {
       <div className="w-full h-[calc(100dvh-env(safe-area-inset-bottom))] flex flex-col bg-slate-50 dark:bg-[#0f172a] relative">
         <div style={barSt} className="px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between gap-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
           <div className="flex items-center gap-3 min-w-0">
-            <button style={inkSt} onClick={() => { setActive(null); setPanel(false); setChatTab("chat"); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
+            <button style={inkSt} onClick={() => { setActive(null); setPanel(false); setChatTab("chat"); setThemeId("plain"); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
             <GroupLogo icon={active.icon} color={active.color} size={40} />
             <div className="min-w-0">
               <h1 style={inkSt} className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">{active.name}</h1>
@@ -310,7 +322,18 @@ export default function CommunityPage() {
               )}
               {messages.map((msg, i) => {
                 const isMe = msg.uid === me?.uid;
-                const first = i === 0 || messages[i - 1].uid !== msg.uid;
+                const first = i === 0 || messages[i - 1].uid !== msg.uid || messages[i - 1].type === "theme";
+                if (msg.type === "theme") {
+                  const who = roster[msg.uid]?.name || msg.displayName;
+                  const tn = CHAT_THEMES.find((x) => x.id === msg.themeId);
+                  return (
+                    <div key={msg.id} className="flex justify-center animate-in fade-in">
+                      <span style={themed ? { background: th.chip, color: th.sub } : undefined} className="max-w-[90%] text-center bg-slate-200/60 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-[11px] font-semibold px-3.5 py-1.5 rounded-full">
+                        {msg.uid === me?.uid ? t("তুমি", "You") : who} {t(`থিম বদলে "${tn?.bn || ""}" করেছে`, `changed the theme to "${tn?.en || ""}"`)}
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <div key={msg.id} className={`flex w-full ${isMe ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2`}>
                     <div className={`flex max-w-[80%] ${isMe ? "flex-row-reverse" : "flex-row"} gap-2`}>
@@ -356,18 +379,18 @@ export default function CommunityPage() {
               </div>
               <div className="grid grid-cols-4 gap-3">
                 {CHAT_THEMES.map((b) => (
-                  <button key={b.id} onClick={() => pickBg(b.id)} className="flex flex-col items-center gap-1.5">
-                    <span className={`relative block w-full aspect-[3/4] rounded-2xl border-2 overflow-hidden bg-slate-50 dark:bg-[#0f172a] transition-all ${bg === b.id ? "border-indigo-500 scale-105" : "border-slate-200 dark:border-white/10"}`}>
+                  <button key={b.id} onClick={() => changeTheme(b.id)} className="flex flex-col items-center gap-1.5">
+                    <span className={`relative block w-full aspect-[3/4] rounded-2xl border-2 overflow-hidden bg-slate-50 dark:bg-[#0f172a] transition-all ${themeId === b.id ? "border-indigo-500 scale-105" : "border-slate-200 dark:border-white/10"}`}>
                       <span className="absolute left-0 top-0 block" style={{ ...b.area, width: "286%", height: "286%", transform: "scale(.35)", transformOrigin: "0 0" }} />
                       {b.id !== "plain" && <span className="absolute inset-x-0 top-0 h-2.5" style={{ background: b.bar }} />}
                       {b.id !== "plain" && <span className="absolute left-1.5 top-5 h-2.5 w-7 rounded-md" style={{ background: b.other }} />}
                       {b.id !== "plain" && <span className="absolute right-1.5 top-9 h-2.5 w-6 rounded-md" style={{ background: b.accent }} />}
                     </span>
-                    <span className={`text-[11px] font-bold ${bg === b.id ? "text-indigo-600 dark:text-indigo-300" : "text-slate-500"}`}>{t(b.bn, b.en)}</span>
+                    <span className={`text-[11px] font-bold ${themeId === b.id ? "text-indigo-600 dark:text-indigo-300" : "text-slate-500"}`}>{t(b.bn, b.en)}</span>
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-slate-400 mt-4">{t("এটা শুধু তোমার ফোনে বদলাবে, অন্যরা নিজেদের পছন্দেরটা দেখবে।", "This only changes on your device. Others see their own choice.")}</p>
+              <p className="text-[11px] text-slate-400 mt-4">{t("থিম বদলালে গ্রুপের সবার চ্যাটেই বদলে যাবে, আর চ্যাটে সেটা লেখা থাকবে।", "Changing the theme changes it for everyone in the group, and the chat will say so.")}</p>
             </div>
           </div>
         )}

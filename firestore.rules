@@ -83,6 +83,16 @@ service cloud.firestore {
         allow delete: if request.auth != null && (uid == request.auth.uid || isOwnerOf(gid));
       }
 
+      // গ্রুপের থিম: যে কোনো সদস্য বদলাতে পারে, সবার জন্য একটাই; মোছে শুধু মালিক (গ্রুপ মোছার সময়)
+      match /settings/{sid} {
+        allow read: if request.auth != null && isMemberOf(gid);
+        allow create, update: if request.auth != null && isMemberOf(gid) && sid == 'theme'
+          && request.resource.data.keys().hasOnly(['theme', 'by', 'byName', 'at'])
+          && request.resource.data.theme is string && request.resource.data.theme.size() <= 20
+          && request.resource.data.by == request.auth.uid;
+        allow delete: if request.auth != null && isOwnerOf(gid);
+      }
+
       match /messages/{messageId} {
         allow read: if request.auth != null && isMemberOf(gid);
         allow create: if request.auth != null && isMemberOf(gid)
