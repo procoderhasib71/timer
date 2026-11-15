@@ -59,6 +59,22 @@ export default function CommunityPage() {
   // প্রোফাইলে বাছা অবতার: গ্রুপে ঢোকার সময় এটাই বসে
   const [myLook, setMyLook] = useState<Look>({});
   useEffect(() => { if (me) void loadMyAvatar(me.uid).then(setMyLook); }, [me]);
+  // অবতার Money বা AdMCQ থেকে বদলালে এখানকার গ্রুপে পুরনোটা থেকে যায়: খুললে একবার মিলিয়ে দিই
+  const healed = useRef(false);
+  useEffect(() => {
+    if (!me || healed.current || myLook.avatar === undefined || !Object.keys(status).length) return;
+    healed.current = true;
+    const mineIds = Object.entries(status).filter(([, v]) => v === "owner" || v === "member").map(([k]) => k);
+    void Promise.all(mineIds.map(async (id) => {
+      const ref = doc(db, "communities", id, "members", me.uid);
+      try {
+        const m = await getDoc(ref);
+        if (m.exists() && ((m.data().avatar || "") !== (myLook.avatar || "") || (myLook.avatar && m.data().avColor !== myLook.avColor))) {
+          await updateDoc(ref, { avatar: myLook.avatar || "", avColor: myLook.avColor || "indigo" });
+        }
+      } catch { /* বাকিগুলো চলুক */ }
+    }));
+  }, [me, myLook, status]);
   const th = CHAT_THEMES.find((b) => b.id === themeId) ?? CHAT_THEMES[0];
   const themed = th.id !== "plain";
   // থিম বাছা থাকলে হেডার, ট্যাব আর নিচের বার থিমের রঙে (না বাছলে আগের মতো, আলো/অন্ধকার মোড মেনে)
