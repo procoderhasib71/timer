@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, Globe } from "lucide-react";
+import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, type User } from "firebase/auth";
@@ -16,20 +16,28 @@ import {
 } from "firebase/firestore";
 
 interface Message { id: string; text: string; uid: string; displayName: string; photoURL: string | null; createdAt: Timestamp | null }
-interface Group { id: string; name: string; description: string; descriptionBn?: string; official?: boolean; ownerUid?: string; ownerName?: string }
+interface Group { id: string; name: string; description: string; icon?: string; color?: string; ownerUid?: string; ownerName?: string }
 interface Member { uid: string; name: string; photoURL: string | null; role: "owner" | "member" }
 interface JoinRequest { uid: string; name: string; photoURL: string | null; note: string }
 type Status = "owner" | "member" | "pending" | "none";
 
-// আগের চালু গ্রুপগুলো: সবার জন্য খোলা (জয়েন লাগে না), আগের মেসেজও থাকে
-const OFFICIAL: Group[] = [
-  { id: "hsc_warriors", name: "HSC 25/26 Warriors", description: "Discussion for HSC board exams and subjects.", descriptionBn: "HSC বোর্ড পরীক্ষা আর বিষয় নিয়ে আলোচনা।", official: true },
-  { id: "medical_admission", name: "Medical Aspirants", description: "Preparation and tips for Medical Admission.", descriptionBn: "মেডিকেল ভর্তির প্রস্তুতি আর পরামর্শ।", official: true },
-  { id: "varsity_admission", name: "Varsity Unit-A", description: "Engineering and Varsity preparation.", descriptionBn: "ইঞ্জিনিয়ারিং আর ভার্সিটির প্রস্তুতি।", official: true },
-  { id: "mbbs_grinders", name: "MBBS Professional", description: "For medical students to discuss anatomy, pathology etc.", descriptionBn: "মেডিকেল ছাত্রদের অ্যানাটমি, প্যাথলজি ইত্যাদি নিয়ে আলোচনা।", official: true },
-];
+// গ্রুপের লোগো: আইকন আর রং বেছে নেওয়া যায় (না থাকলে # আর বেগুনি)
+const ICONS: Record<string, LucideIcon> = { hash: Hash, book: BookOpen, cap: GraduationCap, steth: Stethoscope, flask: FlaskConical, brain: Brain, rocket: Rocket, flame: Flame, trophy: Trophy, target: Target, atom: Atom, dna: Dna, bulb: Lightbulb, users: Users };
+const COLORS: Record<string, [string, string]> = {
+  indigo: ["#6366f1", "#8b5cf6"], rose: ["#f43f5e", "#fb923c"], emerald: ["#10b981", "#14b8a6"], sky: ["#0ea5e9", "#6366f1"],
+  amber: ["#f59e0b", "#ef4444"], pink: ["#ec4899", "#a855f7"], teal: ["#14b8a6", "#0ea5e9"], slate: ["#475569", "#1e293b"],
+};
+function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; size?: number }) {
+  const Icon = ICONS[icon || ""] || Hash;
+  const [from, to] = COLORS[color || ""] || COLORS.indigo;
+  return (
+    <span className="shrink-0 flex items-center justify-center text-white shadow-md" style={{ width: size, height: size, borderRadius: size * 0.3, background: `linear-gradient(135deg, ${from}, ${to})`, boxShadow: `0 8px 18px -8px ${from}` }}>
+      <Icon size={size * 0.5} />
+    </span>
+  );
+}
 
-const messagesPath = (g: Group) => (g.official ? ["groups", g.id, "messages"] : ["communities", g.id, "messages"]) as [string, string, string];
+const messagesPath = (g: Group) => ["communities", g.id, "messages"] as [string, string, string];
 const avatarOf = (name: string, photo: string | null, cls = "w-8 h-8 text-xs") => (
   <div className={`${cls} rounded-full bg-indigo-500 text-white flex items-center justify-center shrink-0 font-bold shadow-sm overflow-hidden`}>
     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -52,7 +60,7 @@ export default function CommunityPage() {
   const [toast, setToast] = useState("");
 
   const myName = account?.name || me?.displayName || t("একজন ছাত্র", "A student");
-  const desc = (g: Group) => (g.official ? (lang === "bn" ? g.descriptionBn || g.description : g.description) : g.description);
+  const desc = (g: Group) => g.description;
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
   useEffect(() => onAuthStateChanged(auth, setMe), []);
@@ -89,20 +97,20 @@ export default function CommunityPage() {
     return () => offs.forEach((f) => f());
   }, [communities, me]);
 
-  const mine = [...OFFICIAL, ...communities.filter((g) => status[g.id] === "owner" || status[g.id] === "member")];
+  const mine = [...communities.filter((g) => status[g.id] === "owner" || status[g.id] === "member")];
   const discover = communities.filter((g) => status[g.id] !== "owner" && status[g.id] !== "member")
     .filter((g) => !search.trim() || g.name.toLowerCase().includes(search.trim().toLowerCase()));
 
-  const createGroup = async (name: string, description: string) => {
+  const createGroup = async (name: string, description: string, icon: string, color: string) => {
     if (!me) return;
     const ref = doc(collection(db, "communities"));
     const batch = writeBatch(db);
-    batch.set(ref, { name: name.trim(), description: description.trim(), ownerUid: me.uid, ownerName: myName, createdAt: serverTimestamp() });
+    batch.set(ref, { name: name.trim(), description: description.trim(), icon, color, ownerUid: me.uid, ownerName: myName, createdAt: serverTimestamp() });
     batch.set(doc(db, "communities", ref.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "owner", joinedAt: serverTimestamp() });
     try {
       await batch.commit();
       setCreating(false);
-      setActive({ id: ref.id, name: name.trim(), description: description.trim(), ownerUid: me.uid, ownerName: myName });
+      setActive({ id: ref.id, name: name.trim(), description: description.trim(), icon, color, ownerUid: me.uid, ownerName: myName });
       flash(t("গ্রুপ তৈরি হয়েছে 🎉", "Group created 🎉"));
     } catch { flash(t("গ্রুপ বানানো যায়নি, আবার চেষ্টা করো", "Couldn't create the group, try again")); }
   };
@@ -140,7 +148,7 @@ export default function CommunityPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
-  const canChat = Boolean(active && (active.official || status[active.id] === "owner" || status[active.id] === "member"));
+  const canChat = Boolean(active && (status[active.id] === "owner" || status[active.id] === "member"));
 
   useEffect(() => {
     if (!active || !me || !canChat) return;
@@ -165,19 +173,19 @@ export default function CommunityPage() {
 
   // ---------------- গ্রুপের ভেতর ----------------
   if (active) {
-    const st: Status = active.official ? "member" : status[active.id] || "none";
+    const st: Status = status[active.id] || "none";
     return (
       <div className="w-full h-[calc(100dvh-env(safe-area-inset-bottom))] flex flex-col bg-slate-50 dark:bg-[#0f172a] relative">
         <div className="px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between gap-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => { setActive(null); setPanel(false); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
-            <div className="w-10 h-10 shrink-0 bg-indigo-100 dark:bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400"><Hash size={20} /></div>
+            <GroupLogo icon={active.icon} color={active.color} size={40} />
             <div className="min-w-0">
               <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">{active.name}</h1>
               <p className="text-[10px] font-medium text-slate-500 line-clamp-1">{desc(active) || t("কমিউনিটি গ্রুপ", "Community group")}</p>
             </div>
           </div>
-          {!active.official && (st === "owner" || st === "member") && (
+          {(st === "owner" || st === "member") && (
             <button onClick={() => setPanel(true)} aria-label={t("সদস্য", "Members")} className="press relative shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200">
               <Users size={18} />
               {(pending[active.id] || 0) > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center">{n(pending[active.id])}</span>}
@@ -234,7 +242,7 @@ export default function CommunityPage() {
           <JoinCard group={active} status={st} onRequest={(note) => sendRequest(active, note)} onCancel={() => cancelRequest(active)} t={t} n={n} />
         )}
 
-        {panel && !active.official && (
+        {panel && (
           <MembersPanel group={active} isOwner={st === "owner"} me={me} onClose={() => setPanel(false)} onLeave={() => leaveGroup(active)} onDelete={() => deleteGroup(active)} flash={flash} t={t} n={n} />
         )}
         {toastEl}
@@ -286,11 +294,11 @@ export default function CommunityPage() {
 
         <div className="space-y-3">
           {list.map((g, idx) => {
-            const st = g.official ? "member" : status[g.id] || "none";
+            const st = status[g.id] || "none";
             return (
               <button key={g.id} onClick={() => setActive(g)} style={{ animationDelay: `${Math.min(idx, 8) * 60}ms` }}
                 className="surface press w-full text-left rounded-2xl p-4 flex items-center gap-4 hover:!border-indigo-500/50 animate-in fade-in slide-in-from-bottom-4">
-                <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">{g.official ? <Globe size={22} /> : <Hash size={22} />}</div>
+                <GroupLogo icon={g.icon} color={g.color} size={46} />
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5">
                     {g.name}{st === "owner" && <Crown size={13} className="text-amber-500 shrink-0" />}
@@ -301,7 +309,7 @@ export default function CommunityPage() {
                   ? <span className="shrink-0 text-[11px] font-extrabold text-white bg-rose-500 px-2.5 py-1 rounded-full">{n(pending[g.id])} {t("অনুরোধ", "requests")}</span>
                   : st === "pending"
                     ? <span className="shrink-0 text-[11px] font-bold text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded-full flex items-center gap-1"><Clock size={11} />{t("অপেক্ষায়", "Pending")}</span>
-                    : g.official ? <span className="shrink-0 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-full">{t("সবার জন্য", "Open")}</span>
+                    
                     : <span className="shrink-0 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-[#2a3850] px-3 py-1.5 rounded-lg">{st === "none" ? t("দেখো", "View") : t("খোলো", "Open")}</span>}
               </button>
             );
@@ -318,9 +326,11 @@ export default function CommunityPage() {
 type TFn = (bn: string, en: string) => string;
 type NFn = (v: number | string) => string;
 
-function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: (name: string, description: string) => Promise<void>; t: TFn }) {
+function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: (name: string, description: string, icon: string, color: string) => Promise<void>; t: TFn }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [icon, setIcon] = useState("book");
+  const [color, setColor] = useState("indigo");
   const [busy, setBusy] = useState(false);
   const ok = name.trim().length >= 2 && !busy;
   return (
@@ -331,6 +341,21 @@ function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: 
           <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("নতুন গ্রুপ খোলো", "Create a group")}</h2>
           <button onClick={onClose} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
         </div>
+        <div className="flex items-center gap-4 mb-4">
+          <GroupLogo icon={icon} color={color} size={64} />
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(ICONS).map(([k, I]) => (
+                <button key={k} type="button" onClick={() => setIcon(k)} aria-label={k} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${icon === k ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400"}`}><I size={16} /></button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(COLORS).map(([k, [f, e]]) => (
+                <button key={k} type="button" onClick={() => setColor(k)} aria-label={k} className={`w-6 h-6 rounded-full transition-transform ${color === k ? "ring-2 ring-offset-2 ring-slate-400 dark:ring-white/60 ring-offset-white dark:ring-offset-[#161b26] scale-110" : ""}`} style={{ background: `linear-gradient(135deg, ${f}, ${e})` }} />
+              ))}
+            </div>
+          </div>
+        </div>
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("গ্রুপের নাম", "Group name")}</label>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder={t("যেমন: মেডিকেল ২০২৭ ব্যাচ", "e.g. Medical 2027 batch")}
           className="mt-1 mb-4 w-full bg-slate-100 dark:bg-white/5 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400/50" />
@@ -338,7 +363,7 @@ function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: 
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} rows={3} placeholder={t("সবাই জয়েন করার আগে এটা দেখবে", "Everyone sees this before asking to join")}
           className="mt-1 w-full bg-slate-100 dark:bg-white/5 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400/50 resize-none" />
         <p className="text-[11px] text-slate-400 mt-2">{t("তুমি গ্রুপের মালিক হবে। অন্যরা জয়েন অনুরোধ পাঠাবে, তুমি মেনে নিলে তারা চ্যাট করতে পারবে।", "You'll be the owner. Others send join requests; once you accept they can chat.")}</p>
-        <button disabled={!ok} onClick={async () => { setBusy(true); await onCreate(name, description); setBusy(false); }}
+        <button disabled={!ok} onClick={async () => { setBusy(true); await onCreate(name, description, icon, color); setBusy(false); }}
           className={`press mt-4 w-full py-3.5 rounded-2xl text-sm font-extrabold transition-all ${ok ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" : "bg-slate-200 dark:bg-white/5 text-slate-400"}`}>
           {busy ? t("তৈরি হচ্ছে...", "Creating...") : t("গ্রুপ তৈরি করো", "Create group")}
         </button>
@@ -353,7 +378,7 @@ function JoinCard({ group, status, onRequest, onCancel, t, n }: { group: Group; 
   useEffect(() => { getCountFromServer(collection(db, "communities", group.id, "members")).then((s) => setCount(s.data().count)).catch(() => undefined); }, [group.id]);
   return (
     <div className="flex-1 overflow-y-auto p-5 flex flex-col items-center text-center">
-      <div className="mt-6 w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30"><Hash size={36} /></div>
+      <div className="mt-6"><GroupLogo icon={group.icon} color={group.color} size={80} /></div>
       <h2 className="mt-4 text-xl font-extrabold text-slate-900 dark:text-white">{group.name}</h2>
       <p className="text-xs font-semibold text-slate-400 mt-1">{count !== null && `${n(count)} ${t("জন সদস্য", count === 1 ? "member" : "members")}`}{group.ownerName && ` · ${t("মালিক", "Owner")}: ${group.ownerName}`}</p>
       {group.description && <p className="mt-4 text-sm text-slate-600 dark:text-slate-300 max-w-sm leading-relaxed">{group.description}</p>}
