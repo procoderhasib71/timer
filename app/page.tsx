@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Calendar, CalendarDays, CheckCircle2, ChevronRight, 
-  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2, Timer, Sparkles, RefreshCw,
+  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2, Timer,
   
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
@@ -22,7 +22,6 @@ import { useFocusStats } from "@/hooks/useFocusStats";
 import { tap } from "@/lib/haptics";
 import { readSettings } from "@/lib/settings";
 import { useLang } from "@/lib/i18n";
-import { quoteOfTheDay, quoteFor } from "@/lib/motivation";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
@@ -101,8 +100,6 @@ export default function PomodoroPage() {
     Today: t("আজ", "Today"), Tomorrow: t("আগামীকাল", "Tomorrow"), "This Week": t("এই সপ্তাহ", "This Week"),
     Planned: t("পরিকল্পিত", "Planned"), Completed: t("শেষ হয়েছে", "Completed"), None: t("নেই", "None"),
   } as Record<string, string>)[v || ""] || v || "";
-  // দিনের অনুপ্রেরণা: তারিখ ধরে ঠিক, চাপলে পরেরটা
-  const [quoteShift, setQuoteShift] = useState(0);
   const [currentScreen, setCurrentScreen] = useState<'home' | 'tasks' | 'timer'>('home');
   const [activeList, setActiveList] = useState("Today");
   
@@ -739,22 +736,6 @@ export default function PomodoroPage() {
         </div>
       </div>
 
-      {/* দিনের অনুপ্রেরণা */}
-      {hour !== null && (() => {
-        const q = quoteOfTheDay(quoteShift);
-        return (
-          <button onClick={() => { tap(8); setQuoteShift((v) => v + 1); }} aria-label={t("আরেকটা উক্তি", "Another quote")}
-            className="press surface w-full rounded-3xl p-4 flex items-start gap-3.5 text-left">
-            <span className="shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center text-white bg-gradient-to-br from-indigo-500 to-violet-500 shadow-[0_8px_18px_-8px_rgba(99,102,241,0.6)]"><Sparkles size={18} /></span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-[10px] font-extrabold uppercase tracking-[0.18em] text-indigo-500 dark:text-indigo-300">{t("আজকের অনুপ্রেরণা", "Daily motivation")}</span>
-              <span key={quoteShift} className="block mt-1 text-[14px] leading-relaxed font-semibold text-slate-700 dark:text-slate-200 animate-in fade-in duration-300">{t(q.bn, q.en)}</span>
-            </span>
-            <RefreshCw size={14} className="shrink-0 mt-1 text-slate-300 dark:text-slate-600" />
-          </button>
-        );
-      })()}
-
       {/* আজকের হিসাব: বাঁয়ে লক্ষ্যের গোল, ডানে streak আর কাজের হিসাব */}
       {(() => {
         const pct = Math.min(1, todayMinutes / dailyGoal);
@@ -1055,15 +1036,6 @@ export default function PomodoroPage() {
       <p className="relative mt-3 h-4 text-[11px] font-semibold text-slate-400">
         {isInitialState ? (mode === 'pomodoro' ? t("শুরু চাপো, ফোন সরিয়ে রাখো", "Press start and put your phone away") : t("একটু হাঁটো, পানি খাও", "Stretch and drink some water")) : isPausedState ? t("চালিয়ে যেতে চাপো", "Tap to continue") : ""}
       </p>
-      {/* টাইমার চলার সময় নিচে ছোট্ট অনুপ্রেরণা (সেশন ধরে বদলায়) */}
-      {hour !== null && (() => {
-        const q = quoteFor((activeTask?.completedPomodoros || 0) + doneInCycle + quoteShift, mode !== 'pomodoro');
-        return (
-          <p className="relative mt-2 mb-1 px-8 max-w-sm text-center text-[12.5px] leading-relaxed font-medium italic text-slate-500 dark:text-slate-400 min-h-[2.6rem]">
-            “{t(q.bn, q.en)}”
-          </p>
-        );
-      })()}
       {celebrate && renderCelebration()}
     </div>
   );
