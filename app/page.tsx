@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Calendar, CalendarDays, CheckCircle2, ChevronRight, 
-  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2, Timer,
+  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2, Timer, Sparkles, RefreshCw,
   
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
@@ -22,6 +22,7 @@ import { useFocusStats } from "@/hooks/useFocusStats";
 import { tap } from "@/lib/haptics";
 import { readSettings } from "@/lib/settings";
 import { useLang } from "@/lib/i18n";
+import { quoteOfTheDay, quoteFor } from "@/lib/motivation";
 import { askNotifyPermission, notify, playRingtone, unlockAudio, vibrate } from "@/lib/alarm";
 
 interface Task {
@@ -100,6 +101,8 @@ export default function PomodoroPage() {
     Today: t("আজ", "Today"), Tomorrow: t("আগামীকাল", "Tomorrow"), "This Week": t("এই সপ্তাহ", "This Week"),
     Planned: t("পরিকল্পিত", "Planned"), Completed: t("শেষ হয়েছে", "Completed"), None: t("নেই", "None"),
   } as Record<string, string>)[v || ""] || v || "";
+  // দিনের অনুপ্রেরণা: তারিখ ধরে ঠিক, চাপলে পরেরটা
+  const [quoteShift, setQuoteShift] = useState(0);
   const [currentScreen, setCurrentScreen] = useState<'home' | 'tasks' | 'timer'>('home');
   const [activeList, setActiveList] = useState("Today");
   
@@ -653,7 +656,7 @@ export default function PomodoroPage() {
           <div className="flex items-center gap-2 mt-1 text-[11px] font-semibold text-slate-400 min-w-0">
             {task.category && <span className="truncate" style={{ color }}>{task.category}</span>}
             <span className="flex items-center gap-1 shrink-0">
-              {Array.from({ length: Math.min(est, 6) }, (_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i < done ? 'bg-rose-400' : 'bg-slate-200 dark:bg-white/10'}`} />)}
+              {Array.from({ length: Math.min(est, 6) }, (_, i) => <span key={i} className={`w-1.5 h-1.5 rounded-full ${i < done ? 'bg-indigo-400' : 'bg-slate-200 dark:bg-white/10'}`} />)}
               {est > 6 && <span>+{n(est - 6)}</span>}
             </span>
             {!task.completed && task.priority && task.priority > 0 ? <Flag size={10} className={`shrink-0 ${getPriorityColor(task.priority)}`} /> : null}
@@ -736,6 +739,22 @@ export default function PomodoroPage() {
         </div>
       </div>
 
+      {/* দিনের অনুপ্রেরণা */}
+      {hour !== null && (() => {
+        const q = quoteOfTheDay(quoteShift);
+        return (
+          <button onClick={() => { tap(8); setQuoteShift((v) => v + 1); }} aria-label={t("আরেকটা উক্তি", "Another quote")}
+            className="press surface w-full rounded-3xl p-4 flex items-start gap-3.5 text-left">
+            <span className="shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center text-white bg-gradient-to-br from-indigo-500 to-violet-500 shadow-[0_8px_18px_-8px_rgba(99,102,241,0.6)]"><Sparkles size={18} /></span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[10px] font-extrabold uppercase tracking-[0.18em] text-indigo-500 dark:text-indigo-300">{t("আজকের অনুপ্রেরণা", "Daily motivation")}</span>
+              <span key={quoteShift} className="block mt-1 text-[14px] leading-relaxed font-semibold text-slate-700 dark:text-slate-200 animate-in fade-in duration-300">{t(q.bn, q.en)}</span>
+            </span>
+            <RefreshCw size={14} className="shrink-0 mt-1 text-slate-300 dark:text-slate-600" />
+          </button>
+        );
+      })()}
+
       {/* আজকের হিসাব: বাঁয়ে লক্ষ্যের গোল, ডানে streak আর কাজের হিসাব */}
       {(() => {
         const pct = Math.min(1, todayMinutes / dailyGoal);
@@ -796,14 +815,14 @@ export default function PomodoroPage() {
           {todayTasks.length === 0
             ? (
               <div className="rounded-3xl border-2 border-dashed border-slate-200 dark:border-white/10 px-6 py-8 flex flex-col items-center text-center">
-                {/* ছোট ছবি: দুটো কার্ড আর একটা টমেটো */}
+                {/* ছোট ছবি: দুটো কার্ড আর একটা ঘড়ি */}
                 <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden>
                   <rect x="18" y="14" width="58" height="40" rx="10" className="fill-slate-100 dark:fill-white/5" transform="rotate(-8 47 34)" />
                   <rect x="22" y="18" width="58" height="40" rx="10" className="fill-white stroke-slate-200 dark:fill-slate-800 dark:stroke-white/10" strokeWidth="1.5" />
                   <rect x="32" y="30" width="26" height="5" rx="2.5" className="fill-slate-200 dark:fill-white/10" />
                   <rect x="32" y="40" width="38" height="5" rx="2.5" className="fill-slate-100 dark:fill-white/5" />
-                  <circle cx="74" cy="20" r="11" fill="#fb7185" />
-                  <path d="M70 11c2 2 6 2 8 0" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" />
+                  <circle cx="74" cy="20" r="11" fill="#6366f1" />
+                  <path d="M74 14v6l4 2.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <p className="mt-3 text-sm font-extrabold text-slate-800 dark:text-slate-100">{t("আজকের তালিকা ফাঁকা", "Your day is open")}</p>
                 <p className="text-xs text-slate-400 mt-1">{t("ছোট একটা কাজ দিয়ে শুরু করো, তারপর ২৫ মিনিট মন দাও।", "Start with one small task, then focus for 25 minutes.")}</p>
@@ -1036,6 +1055,15 @@ export default function PomodoroPage() {
       <p className="relative mt-3 h-4 text-[11px] font-semibold text-slate-400">
         {isInitialState ? (mode === 'pomodoro' ? t("শুরু চাপো, ফোন সরিয়ে রাখো", "Press start and put your phone away") : t("একটু হাঁটো, পানি খাও", "Stretch and drink some water")) : isPausedState ? t("চালিয়ে যেতে চাপো", "Tap to continue") : ""}
       </p>
+      {/* টাইমার চলার সময় নিচে ছোট্ট অনুপ্রেরণা (সেশন ধরে বদলায়) */}
+      {hour !== null && (() => {
+        const q = quoteFor((activeTask?.completedPomodoros || 0) + doneInCycle + quoteShift, mode !== 'pomodoro');
+        return (
+          <p className="relative mt-2 mb-1 px-8 max-w-sm text-center text-[12.5px] leading-relaxed font-medium italic text-slate-500 dark:text-slate-400 min-h-[2.6rem]">
+            “{t(q.bn, q.en)}”
+          </p>
+        );
+      })()}
       {celebrate && renderCelebration()}
     </div>
   );
@@ -1155,21 +1183,21 @@ export default function PomodoroPage() {
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-4 space-y-4 scrollbar-hide">
               {/* কয়টা পোমোডোরো */}
-              <div className="rounded-2xl p-4 bg-gradient-to-br from-rose-50 to-orange-50 dark:from-rose-500/10 dark:to-orange-500/5 border border-rose-100 dark:border-rose-500/15">
+              <div className="rounded-2xl p-4 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-500/10 dark:to-violet-500/5 border border-indigo-100 dark:border-indigo-500/15">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500/80">{t("ফোকাস সেশন", "Focus sessions")}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-500/80">{t("ফোকাস সেশন", "Focus sessions")}</p>
                     <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5 flex items-center gap-1.5"><Timer size={22} className="text-indigo-500" /> {n(done)}<span className="text-slate-400 font-bold text-lg"> / {n(est)}</span></p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{t(`আনুমানিক ${dur(est * focusLen)} · প্রতিটা ${n(focusLen)} মিনিট`, `About ${dur(est * focusLen)} · ${focusLen} min each`)}</p>
                   </div>
-                  <div className="flex items-center gap-1 bg-white dark:bg-black/20 rounded-xl p-1 border border-rose-100 dark:border-white/10">
-                    <button onClick={() => handleUpdateTaskDetails(et.id, { estimatedPomodoros: Math.max(1, est - 1) })} disabled={est <= 1} aria-label={t("কমাও", "Fewer")} className="w-9 h-9 rounded-lg text-lg font-bold text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-white/10 disabled:opacity-30">−</button>
+                  <div className="flex items-center gap-1 bg-white dark:bg-black/20 rounded-xl p-1 border border-indigo-100 dark:border-white/10">
+                    <button onClick={() => handleUpdateTaskDetails(et.id, { estimatedPomodoros: Math.max(1, est - 1) })} disabled={est <= 1} aria-label={t("কমাও", "Fewer")} className="w-9 h-9 rounded-lg text-lg font-bold text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-white/10 disabled:opacity-30">−</button>
                     <span className="w-7 text-center font-extrabold text-slate-900 dark:text-white tabular-nums">{n(est)}</span>
-                    <button onClick={() => handleUpdateTaskDetails(et.id, { estimatedPomodoros: Math.min(20, est + 1) })} disabled={est >= 20} aria-label={t("বাড়াও", "More")} className="w-9 h-9 rounded-lg text-lg font-bold text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-white/10 disabled:opacity-30">+</button>
+                    <button onClick={() => handleUpdateTaskDetails(et.id, { estimatedPomodoros: Math.min(20, est + 1) })} disabled={est >= 20} aria-label={t("বাড়াও", "More")} className="w-9 h-9 rounded-lg text-lg font-bold text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-white/10 disabled:opacity-30">+</button>
                   </div>
                 </div>
-                <div className="mt-3 h-1.5 rounded-full bg-rose-100 dark:bg-white/5 overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-orange-400 transition-all duration-500" style={{ width: `${Math.min(100, Math.round((done / est) * 100))}%` }} />
+                <div className="mt-3 h-1.5 rounded-full bg-indigo-100 dark:bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-violet-400 transition-all duration-500" style={{ width: `${Math.min(100, Math.round((done / est) * 100))}%` }} />
                 </div>
               </div>
 
