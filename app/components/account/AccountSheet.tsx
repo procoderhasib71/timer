@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebaseClient";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
+import { AvatarBadge, loadMyAvatar, type Look } from "@/lib/avatar";
 import ProfileForm from "./ProfileForm";
 import SettingsPanel from "./SettingsPanel";
 
@@ -42,6 +43,8 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
   const { t } = useLang();
   const name = account?.name || auth.currentUser?.displayName || t("ছাত্র", "Student");
   const level = account?.studyLevel && LEVEL[account.studyLevel];
+  const [look, setLook] = useState<Look>({});   // প্রোফাইলে বাছা অবতার (হেডারে দেখাই)
+  useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then(setLook); }, []);
   const sub = [level && t(level[0], level[1]), account?.institution].filter(Boolean).join(" · ");
 
   // খোলা থাকলে পেছনের পাতা স্ক্রল হয় না; Esc চাপলে বন্ধ
@@ -64,9 +67,7 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
         <div className="md:hidden mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-white/15" />
 
         <div className="px-5 pt-4 pb-4 flex items-center gap-3.5">
-          <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center text-xl font-extrabold shadow-md shadow-indigo-500/20">
-            {name.charAt(0).toUpperCase()}
-          </div>
+          <AvatarBadge name={name} photo={null} look={look} cls="w-12 h-12 text-xl" />
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">{name}</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sub || t("Shongi Lab অ্যাকাউন্ট", "Shongi Lab account")}</p>
@@ -88,7 +89,7 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
         </div>
 
         <div key={tab} className="flex-1 overflow-y-auto overscroll-contain px-5 pt-2 pb-8 animate-in fade-in duration-200">
-          {tab === "settings" ? <SettingsPanel /> : <ProfileForm onSaved={() => undefined} />}
+          {tab === "settings" ? <SettingsPanel /> : <ProfileForm onSaved={() => undefined} onLook={setLook} />}
         </div>
       </div>
     </div>

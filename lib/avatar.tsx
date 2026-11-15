@@ -3,7 +3,7 @@
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 
-export const AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦉", "🐬", "🦄", "🐙", "🦋", "🐢", "🚀", "⭐", "🔥", "🌙", "🍀", "🎯", "📚", "🧠", "🎧", "☕", "🌸", "⚡"];
+export const AVATARS = ["👨‍🎓", "👩‍🎓", "🧑‍⚕️", "👨‍⚕️", "👩‍⚕️", "🧑‍💻", "👨‍💻", "👩‍💻", "👨‍🏫", "👩‍🏫", "🧑‍🔬", "🧕", "🧔", "👦", "👧", "🦸", "🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦉", "🐬", "🦄", "🚀", "⭐", "🔥"];   // আগে মানুষ, তারপর প্রাণী আর অন্যান্য
 export const COLORS: Record<string, [string, string]> = {
   indigo: ["#6366f1", "#8b5cf6"], rose: ["#f43f5e", "#fb923c"], emerald: ["#10b981", "#14b8a6"], sky: ["#0ea5e9", "#6366f1"],
   amber: ["#f59e0b", "#ef4444"], pink: ["#ec4899", "#a855f7"], teal: ["#14b8a6", "#0ea5e9"], slate: ["#475569", "#1e293b"],

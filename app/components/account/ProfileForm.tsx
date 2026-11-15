@@ -22,7 +22,7 @@ const chip = (on: boolean) => `px-4 py-2.5 rounded-xl text-sm font-bold transiti
   : "bg-slate-100 text-slate-500 dark:bg-slate-900/80 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"}`;
 
 // onSaved না দিলে (প্রথমবার /profile পাতা) রাখার পরে হোমে যাই; শিটে থাকলে শিটেই "রাখা হলো" দেখাই
-export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
+export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void; onLook?: (l: Look) => void }) {
   const { account, setAccount, botLinked } = useAccount();
   const { t } = useLang();
   const [f, setF] = useState({
@@ -32,9 +32,10 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
     institution: account?.institution || "",
     hscBatch: account?.hscBatch || "",
   });
-  const [look, setLook] = useState<Look>({});
+  const [look, setLookState] = useState<Look>({});
+  const setLook = (l: Look) => { setLookState(l); onLook?.(l); };   // বাছার সাথে সাথে হেডারের অবতারও বদলায়
   const [savedLook, setSavedLook] = useState<Look>({});   // শেষবার রাখা অবতার: বদলালে তবেই গ্রুপগুলোতে ছড়াই
-  useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then((l) => { setLook(l); setSavedLook(l); }); }, []);
+  useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then((l) => { setLookState(l); setSavedLook(l); }); }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
