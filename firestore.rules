@@ -23,6 +23,63 @@ service cloud.firestore {
         && request.resource.data.text.size() <= 1000;
     }
 
+    // ইউজারের বানানো কমিউনিটি গ্রুপ।
+    // গ্রুপ: লগইন করা সবাই দেখতে পাবে (খুঁজে জয়েন অনুরোধ পাঠাতে); বানায় যে সে মালিক, শুধু মালিক বদলাতে/মুছতে পারে।
+    // সদস্য: মালিক অনুরোধ মেনে নিলে সদস্য হয়; সদস্য নিজে বের হতে পারে, মালিক কাউকে বের করতে পারে।
+    // মেসেজ: শুধু সদস্যরা পড়তে ও লিখতে পারে।
+    function isOwnerOf(gid) {
+      return get(/databases/$(database)/documents/communities/$(gid)).data.ownerUid == request.auth.uid;
+    }
+    function isMemberOf(gid) {
+      return exists(/databases/$(database)/documents/communities/$(gid)/members/$(request.auth.uid));
+    }
+    match /communities/{gid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name', 'description', 'ownerUid', 'ownerName', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 40
+        && request.resource.data.description is string && request.resource.data.description.size() <= 200
+        && request.resource.data.ownerName is string && request.resource.data.ownerName.size() <= 60;
+      allow update: if request.auth != null && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 40
+        && request.resource.data.description is string && request.resource.data.description.size() <= 200;
+      allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+
+      match /members/{uid} {
+        allow read: if request.auth != null;
+        // নিজেকে মালিক হিসেবে (গ্রুপ বানানোর সাথে একই ব্যাচে) অথবা মালিক অন্য কাউকে সদস্য করছে
+        allow create: if request.auth != null
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'role', 'joinedAt'])
+          && request.resource.data.uid == uid
+          && ((uid == request.auth.uid && request.resource.data.role == 'owner'
+                && getAfter(/databases/$(database)/documents/communities/$(gid)).data.ownerUid == request.auth.uid)
+              || (request.resource.data.role == 'member' && isOwnerOf(gid)));
+        allow delete: if request.auth != null
+          && ((uid == request.auth.uid && resource.data.role != 'owner') || isOwnerOf(gid));
+      }
+
+      match /requests/{uid} {
+        allow read: if request.auth != null && (uid == request.auth.uid || isOwnerOf(gid));
+        allow create: if request.auth != null && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'note', 'createdAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.note is string && request.resource.data.note.size() <= 200
+          && !isMemberOf(gid);
+        allow delete: if request.auth != null && (uid == request.auth.uid || isOwnerOf(gid));
+      }
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null && isMemberOf(gid);
+        allow create: if request.auth != null && isMemberOf(gid)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+      }
+    }
+
     // Pomodoro লিডারবোর্ড (board = সপ্তাহের শনিবারের তারিখ বা "all"): লগইন করা সবাই পড়বে, প্রত্যেকে শুধু নিজের ঘরে লিখবে।
     // নতুন ঘর বানানোর সময়ও ৩ ঘণ্টার (১৮০ মিনিট) বেশি দিয়ে শুরু করা যায় না (আগে ১০০০০০ পর্যন্ত যেত, তাতে এক লাফে ১ নম্বর হওয়া যেত);
     // পরে একবারে ৩ ঘণ্টার বেশি বাড়ানো যায় না, কমানোও যায় না। মোছা যায় না। (lib/leaderboard.ts এর CREATE_MAX এর সাথে মিলিয়ে রাখো)
