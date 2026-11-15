@@ -3,8 +3,12 @@ import withPWAInit from "@ducanh2912/next-pwa";
 const withPWA = withPWAInit({
   dest: "public",
   register: true,
-  cacheStartUrl: true,
-  dynamicStartUrl: true,   // শুরুর পাতা আগে নেট থেকে (নতুন version সাথে সাথে), নেট না থাকলে cache থেকে
+  // শুরুর পাতা আর অন্য পাতা আগে cache থেকে সাথে সাথে দেখাই, পেছনে নেট থেকে নতুনটা আনি (নিচের app-shell)।
+  // আগে নেট-আগে (NetworkFirst) ছিল: অ্যাপ খুললেই সার্ভারের উত্তরের অপেক্ষা, সার্ভার ঘুমিয়ে থাকলে কয়েক সেকেন্ড দেরি
+  // (money-manager-app/next.config.mjs এর সাথে একই)
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
+  extendDefaultRuntimeCaching: true,
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
@@ -12,6 +16,16 @@ const withPWA = withPWAInit({
   disable: process.env.NODE_ENV === "development",
   workboxOptions: {
     disableDevLogs: true,
+    runtimeCaching: [
+      {
+        urlPattern: ({ request, sameOrigin }) => sameOrigin && request.mode === "navigate",
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "app-shell",
+          expiration: { maxEntries: 32, maxAgeSeconds: 7 * 24 * 60 * 60 },
+        },
+      },
+    ],
   },
 });
 

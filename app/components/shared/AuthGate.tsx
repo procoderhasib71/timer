@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Loader2 } from 'lucide-react';
+import LaunchScreen from './LaunchScreen';
 import { auth } from '@/lib/firebaseClient';
 import { Account, fetchAccount } from '@/lib/admcqAccount';
 
@@ -23,17 +23,43 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [botLinked, setBotLinked] = useState(false);
   const [state, setState] = useState<'checking' | 'out' | 'needProfile' | 'ok'>('checking');
 
-  useEffect(() => onAuthStateChanged(auth, async (user) => {
-    if (!user) return setState('out');
+  // Firebase লগইন ফিরে আসার অপেক্ষাও করি না: শেষ জানা ব্যবহারকারীর রাখা কপি থাকলে প্রথম মুহূর্তেই অ্যাপ দেখাই,
+  // তারপর আসল লগইন যাচাই হয়ে অবস্থা ঠিক করে (লগইন না থাকলে /login এ পাঠায়)
+  const cachedRef = useRef(false);
+  useEffect(() => {
     try {
-      const r = await fetchAccount(auth);
-      setAccount(r.account);
-      setBotLinked(Boolean(r.botLinks.pomodoro));
-      setState(r.complete.full ? 'ok' : 'needProfile');
-    } catch {
-      setState('ok');
-    }
-  }), []);
+      const uid = localStorage.getItem('focus_last_uid');
+      const saved = uid ? localStorage.getItem(`focus_account_${uid}`) : null;
+      if (saved) {
+        const c = JSON.parse(saved) as { account: Account | null; botLinked: boolean; complete: boolean };
+        cachedRef.current = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- the saved copy only exists in the browser
+        setAccount(c.account);
+        setBotLinked(c.botLinked);
+        setState(c.complete ? 'ok' : 'needProfile');
+      }
+    } catch { /* প্রাইভেট মোড বা ভাঙা লেখা: লগইন যাচাইয়ের পরেই দেখাই */ }
+
+    return onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        cachedRef.current = false;
+        try { localStorage.removeItem('focus_last_uid'); } catch { /* সমস্যা নেই */ }
+        return setState('out');
+      }
+      try { localStorage.setItem('focus_last_uid', user.uid); } catch { /* সমস্যা নেই */ }
+      try {
+        const r = await fetchAccount(auth);
+        setAccount(r.account);
+        setBotLinked(Boolean(r.botLinks.pomodoro));
+        setState(r.complete.full ? 'ok' : 'needProfile');
+        try {
+          localStorage.setItem(`focus_account_${user.uid}`, JSON.stringify({ account: r.account, botLinked: Boolean(r.botLinks.pomodoro), complete: r.complete.full }));
+        } catch { /* জায়গা নেই: সমস্যা নেই */ }
+      } catch {
+        if (!cachedRef.current) setState('ok');
+      }
+    });
+  }, []);
 
   // অবস্থা অনুযায়ী ঠিক পেজে পাঠাই। /login নিজেই সামলায় (রেজিস্ট্রেশনের মাঝে OTP তে লগইন হয়ে যায়, তখন সরানো যাবে না)
   const target = state === 'out' ? '/login' : state === 'needProfile' ? '/profile' : null;
@@ -44,13 +70,19 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     window.location.replace(target || '/');
   }, [wrongPage, target]);
 
-  const value = { account, setAccount: (a: Account) => { setAccount(a); setState('ok'); }, botLinked };
-  if ((state === 'checking' && !isPublic) || wrongPage) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-indigo-500" size={32} />
-      </div>
-    );
-  }
+  const value = {
+    account,
+    setAccount: (a: Account) => {
+      setAccount(a);
+      setState('ok');
+      // প্রোফাইল বদলালে রাখা কপিও বদলাই
+      const uid = auth.currentUser?.uid;
+      try {
+        if (uid) localStorage.setItem(`focus_account_${uid}`, JSON.stringify({ account: a, botLinked, complete: true }));
+      } catch { /* সমস্যা নেই */ }
+    },
+    botLinked,
+  };
+  if ((state === 'checking' && !isPublic) || wrongPage) return <LaunchScreen />;
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

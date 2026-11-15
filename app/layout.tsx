@@ -31,6 +31,20 @@ export const viewport: Viewport = {
   viewportFit: "cover", // Notch/Island সাপোর্ট
 };
 
+// iOS এ হোম স্ক্রিন থেকে খুললে প্রথমে এই ছবি দেখায় (public/splash); না থাকলে সাদা বা কালো ঝলক আসে।
+// প্রতিটা iPhone/iPad এর মাপে light আর dark দুটো। Money অ্যাপের সাথে একই ব্যবস্থা।
+const SPLASH_SIZES: [number, number, number][] = [
+  [440, 956, 3], [430, 932, 3], [402, 874, 3], [393, 852, 3], [428, 926, 3], [390, 844, 3],
+  [375, 812, 3], [414, 896, 3], [414, 896, 2], [414, 736, 3], [375, 667, 2], [320, 568, 2],
+  [1024, 1366, 2], [834, 1194, 2], [820, 1180, 2], [768, 1024, 2],
+];
+const startupImage = SPLASH_SIZES.flatMap(([w, h, r]) =>
+  (["light", "dark"] as const).map((theme) => ({
+    url: `/splash/${theme}-${w * r}x${h * r}.png`,
+    media: `(device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${r}) and (orientation: portrait) and (prefers-color-scheme: ${theme})`,
+  })),
+);
+
 export const metadata: Metadata = {
   title: "Shongi Focus",
   description: "Focus timer and study planner for students in Bangladesh",
@@ -40,6 +54,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",   // অ্যাপ স্ট্যাটাস বারের নিচ পর্যন্ত; হেডারের উপরের padding নচের জায়গা রাখে
     title: "Shongi Focus",
+    startupImage,
   },
 };
 
@@ -52,13 +67,15 @@ export default function RootLayout({
     <html lang="bn" suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        {/* CSS আসার আগেও পটভূমি থিমের রঙে থাকে, তাই খোলার সময় সাদা ঝলক আসে না */}
+        <style>{`html{background:#f8fafc}@media (prefers-color-scheme:dark){html{background:#0f172a}}html.dark{background:#0f172a}html.light{background:#f8fafc}`}</style>
       </head>
-      <body className={`${inter.variable} ${bangla.variable} font-sans antialiased min-h-screen bg-[var(--background)] transition-colors`}>
+      <body className={`${inter.variable} ${bangla.variable} font-sans antialiased min-h-screen bg-[var(--background)]`}>
         <PwaRegistry />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <LangProvider>
           
-          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden transition-colors flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+          <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-7xl mx-auto min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white relative overflow-x-hidden flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
             
             <AuthGate>
             <AccountSheetProvider>
