@@ -7,7 +7,7 @@ import { saveAccount } from "@/lib/admcqAccount";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import BotLink from "@/app/components/shared/BotLink";
 import { useLang } from "@/lib/i18n";
-import { AVATARS, COLORS, AvatarBadge, loadMyAvatar, saveMyAvatar, type Look } from "@/lib/avatar";
+import { AVATARS, COLORS, AvatarBadge, loadMyAvatar, saveMyAvatar, syncAvatarToGroups, type Look } from "@/lib/avatar";
 
 // প্রোফাইল AdMCQ আর Money এর সাথে এক (AdMCQ এর ডাটাবেসে থাকে); অন্য জায়গায় পূরণ করা থাকলে এখানে আগে থেকেই বসানো।
 const LEVELS: [string, string, string][] = [
@@ -33,7 +33,8 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
     hscBatch: account?.hscBatch || "",
   });
   const [look, setLook] = useState<Look>({});
-  useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then(setLook); }, []);
+  const [savedLook, setSavedLook] = useState<Look>({});   // শেষবার রাখা অবতার: বদলালে তবেই গ্রুপগুলোতে ছড়াই
+  useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then((l) => { setLook(l); setSavedLook(l); }); }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -47,7 +48,14 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
     setBusy(true);
     try {
       const r = await saveAccount(auth, f);
-      if (auth.currentUser) await saveMyAvatar(auth.currentUser.uid, look).catch(() => undefined);
+      const u = auth.currentUser;
+      if (u) {
+        await saveMyAvatar(u.uid, look).catch(() => undefined);
+        if ((look.avatar || "") !== (savedLook.avatar || "") || (look.avatar && look.avColor !== savedLook.avColor)) {
+          void syncAvatarToGroups(u.uid, look);
+          setSavedLook(look);
+        }
+      }
       setAccount(r.account);
       if (!onSaved) return window.location.replace("/");
       setBusy(false);
@@ -84,7 +92,7 @@ export default function ProfileForm({ onSaved }: { onSaved?: () => void }) {
               ))}
             </div>
           )}
-          <p className="text-[11px] text-slate-400">{t("কমিউনিটি গ্রুপে ঢুকলে এই অবতারটাই দেখাবে। \"ছবি\" বাছলে Google ছবি বা নামের প্রথম অক্ষর।", "This shows up when you join community groups. \"Photo\" uses your Google picture or initial.")}</p>
+          <p className="text-[11px] text-slate-400">{t("কমিউনিটি গ্রুপে ঢুকলে এই অবতারটাই দেখাবে, পরে বদলালে সব গ্রুপেই বদলে যাবে। \"ছবি\" বাছলে Google ছবি বা নামের প্রথম অক্ষর।", "This shows up in your community groups, and changing it updates all of them. \"Photo\" uses your Google picture or initial.")}</p>
         </div>
 
         <div className={box}>

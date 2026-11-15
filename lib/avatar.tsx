@@ -1,6 +1,6 @@
 // অবতার: ইমোজি + রঙ। প্রোফাইলে একবার বাছলে গ্রুপে ঢোকার সময় সেটাই বসে (গ্রুপে আলাদা করেও বদলানো যায়)।
 // প্রোফাইলের অবতার থাকে users/{uid}/profile/avatar এ (শুধু নিজে পড়ে/লেখে)।
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebaseClient";
 
 export const AVATARS = ["🦊", "🐼", "🐯", "🦁", "🐨", "🐸", "🦉", "🐬", "🦄", "🐙", "🦋", "🐢", "🚀", "⭐", "🔥", "🌙", "🍀", "🎯", "📚", "🧠", "🎧", "☕", "🌸", "⚡"];
@@ -33,3 +33,14 @@ export async function loadMyAvatar(uid: string): Promise<Look> {
   try { const d = await getDoc(ref(uid)); return d.exists() ? { avatar: d.data().avatar || "", avColor: d.data().avColor || "indigo" } : {}; } catch { return {}; }
 }
 export const saveMyAvatar = (uid: string, look: Look) => setDoc(ref(uid), { avatar: look.avatar || "", avColor: look.avColor || "indigo" });
+
+/** প্রোফাইলে অবতার বদলালে যত গ্রুপের সদস্য, সবখানে বদলে দিই (শুধু অবতার; গ্রুপে রাখা নাম নয়) */
+export async function syncAvatarToGroups(uid: string, look: Look) {
+  const groups = await getDocs(collection(db, "communities"));
+  await Promise.all(groups.docs.map(async (g) => {
+    const m = doc(db, "communities", g.id, "members", uid);
+    try {
+      if ((await getDoc(m)).exists()) await updateDoc(m, { avatar: look.avatar || "", avColor: look.avColor || "indigo" });
+    } catch { /* এই গ্রুপে হয়নি, বাকিগুলো চলুক */ }
+  }));
+}
