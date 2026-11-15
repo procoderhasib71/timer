@@ -4,12 +4,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, Palette, Medal, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
+import { weekId } from "@/lib/leaderboard";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
   writeBatch, getCountFromServer, type Timestamp,
@@ -27,6 +28,19 @@ const COLORS: Record<string, [string, string]> = {
   indigo: ["#6366f1", "#8b5cf6"], rose: ["#f43f5e", "#fb923c"], emerald: ["#10b981", "#14b8a6"], sky: ["#0ea5e9", "#6366f1"],
   amber: ["#f59e0b", "#ef4444"], pink: ["#ec4899", "#a855f7"], teal: ["#14b8a6", "#0ea5e9"], slate: ["#475569", "#1e293b"],
 };
+// চ্যাটের পেছনের ছবি: নিজের পছন্দ, এই ফোনে মনে থাকে (সব গ্রুপে একই)
+const CHAT_BGS: { id: string; bn: string; en: string; css: React.CSSProperties }[] = [
+  { id: "plain", bn: "সাদামাটা", en: "Plain", css: {} },
+  { id: "dots", bn: "বিন্দু", en: "Dots", css: { backgroundImage: "radial-gradient(rgba(99,102,241,.22) 1.2px, transparent 1.2px)", backgroundSize: "18px 18px" } },
+  { id: "grid", bn: "খাতা", en: "Grid", css: { backgroundImage: "linear-gradient(rgba(100,116,139,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,.14) 1px, transparent 1px)", backgroundSize: "24px 24px" } },
+  { id: "aurora", bn: "অরোরা", en: "Aurora", css: { backgroundImage: "linear-gradient(160deg, rgba(99,102,241,.28), rgba(168,85,247,.18) 55%, rgba(236,72,153,.2))" } },
+  { id: "ocean", bn: "সাগর", en: "Ocean", css: { backgroundImage: "linear-gradient(170deg, rgba(14,165,233,.26), rgba(20,184,166,.2))" } },
+  { id: "forest", bn: "বন", en: "Forest", css: { backgroundImage: "linear-gradient(170deg, rgba(16,185,129,.26), rgba(132,204,22,.16))" } },
+  { id: "sunset", bn: "সূর্যাস্ত", en: "Sunset", css: { backgroundImage: "linear-gradient(170deg, rgba(251,146,60,.28), rgba(244,63,94,.2))" } },
+  { id: "night", bn: "রাত", en: "Night", css: { backgroundImage: "linear-gradient(180deg, rgba(15,23,42,.55), rgba(30,27,75,.5))" } },
+];
+const BG_KEY = "pomodoro_chat_bg";
+
 function GroupLogo({ icon, color, size = 44 }: { icon?: string; color?: string; size?: number }) {
   const Icon = ICONS[icon || ""] || Hash;
   const [from, to] = COLORS[color || ""] || COLORS.indigo;
@@ -57,6 +71,13 @@ export default function CommunityPage() {
   const [creating, setCreating] = useState(false);
   const [active, setActive] = useState<Group | null>(null);
   const [panel, setPanel] = useState(false);
+  const [bgPicker, setBgPicker] = useState(false);
+  const [chatTab, setChatTab] = useState<"chat" | "rank">("chat");
+  const [bg, setBg] = useState("plain");
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage শুধু ব্রাউজারে, মাউন্টের পর পড়ি
+  useEffect(() => { try { const v = localStorage.getItem(BG_KEY); if (v) setBg(v); } catch { /* প্রাইভেট মোড */ } }, []);
+  const pickBg = (id: string) => { setBg(id); try { localStorage.setItem(BG_KEY, id); } catch { /* প্রাইভেট মোড */ } };
+  const bgCss = CHAT_BGS.find((b) => b.id === bg)?.css || {};
   const [toast, setToast] = useState("");
 
   const myName = account?.name || me?.displayName || t("একজন ছাত্র", "A student");
@@ -183,7 +204,7 @@ export default function CommunityPage() {
       <div className="w-full h-[calc(100dvh-env(safe-area-inset-bottom))] flex flex-col bg-slate-50 dark:bg-[#0f172a] relative">
         <div className="px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] flex items-center justify-between gap-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0 shadow-sm z-30">
           <div className="flex items-center gap-3 min-w-0">
-            <button onClick={() => { setActive(null); setPanel(false); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
+            <button onClick={() => { setActive(null); setPanel(false); setChatTab("chat"); }} aria-label={t("পেছনে", "Back")} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ArrowLeft size={24} /></button>
             <GroupLogo icon={active.icon} color={active.color} size={40} />
             <div className="min-w-0">
               <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate">{active.name}</h1>
@@ -191,16 +212,33 @@ export default function CommunityPage() {
             </div>
           </div>
           {(st === "owner" || st === "member") && (
+            <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setBgPicker(true)} aria-label={t("চ্যাটের ব্যাকগ্রাউন্ড", "Chat background")} className="press shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200"><Palette size={18} /></button>
             <button onClick={() => setPanel(true)} aria-label={t("সদস্য", "Members")} className="press relative shrink-0 p-2.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200">
               <Users size={18} />
               {(pending[active.id] || 0) > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-extrabold flex items-center justify-center">{n(pending[active.id])}</span>}
             </button>
+            </div>
           )}
         </div>
 
-        {canChat ? (
+        {canChat && (
+          <div className="px-4 py-2 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-white/5 shrink-0">
+            <div className="p-1 rounded-xl bg-slate-100 dark:bg-white/5 grid grid-cols-2">
+              {(["chat", "rank"] as const).map((k) => (
+                <button key={k} onClick={() => setChatTab(k)} className={`py-1.5 rounded-lg text-xs font-bold transition-all ${chatTab === k ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
+                  {k === "chat" ? t("চ্যাট", "Chat") : t("ফোকাস র‍্যাঙ্ক", "Focus ranking")}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {canChat && chatTab === "rank" ? (
+          <GroupRanking group={active} me={me} t={t} n={n} />
+        ) : canChat ? (
           <>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" style={bgCss}>
               <div className="flex justify-center my-6">
                 <div className="bg-slate-200/50 dark:bg-white/5 px-4 py-2 rounded-full text-xs font-medium text-slate-500 dark:text-slate-400 text-center">
                   {t("স্বাগতম", "Welcome to")} <span className="font-bold">{active.name}</span> 🚀
@@ -249,6 +287,26 @@ export default function CommunityPage() {
 
         {panel && (
           <MembersPanel group={active} isOwner={st === "owner"} me={me} onClose={() => setPanel(false)} onLeave={() => leaveGroup(active)} onDelete={() => deleteGroup(active)} flash={flash} t={t} n={n} />
+        )}
+        {bgPicker && (
+          <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="fixed inset-0" onClick={() => setBgPicker(false)} />
+            <div className="relative w-full max-w-lg bg-white dark:bg-[#161b26] rounded-t-[28px] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] border-t border-slate-200 dark:border-white/10 animate-in slide-in-from-bottom duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("চ্যাটের ব্যাকগ্রাউন্ড", "Chat background")}</h2>
+                <button onClick={() => setBgPicker(false)} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {CHAT_BGS.map((b) => (
+                  <button key={b.id} onClick={() => pickBg(b.id)} className="flex flex-col items-center gap-1.5">
+                    <span className={`w-full aspect-[3/4] rounded-2xl border-2 bg-slate-50 dark:bg-[#0f172a] transition-all ${bg === b.id ? "border-indigo-500 scale-105" : "border-slate-200 dark:border-white/10"}`} style={b.css} />
+                    <span className={`text-[11px] font-bold ${bg === b.id ? "text-indigo-600 dark:text-indigo-300" : "text-slate-500"}`}>{t(b.bn, b.en)}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-4">{t("এটা শুধু তোমার ফোনে বদলাবে, অন্যরা নিজেদের পছন্দেরটা দেখবে।", "This only changes on your device. Others see their own choice.")}</p>
+            </div>
+          </div>
         )}
         {toastEl}
       </div>
@@ -487,6 +545,74 @@ function MembersPanel({ group, isOwner, me, onClose, onLeave, onDelete, flash, t
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// গ্রুপের সদস্যদের ফোকাস সময়: লিডারবোর্ড (leaderboards/{সপ্তাহ বা all}/users/{uid}) থেকে, বেশি থেকে কম
+function GroupRanking({ group, me, t, n }: { group: Group; me: User | null; t: TFn; n: NFn }) {
+  const [range, setRange] = useState<"week" | "all">("week");
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [mins, setMins] = useState<Record<string, { minutes: number; hidden: boolean }> | null>(null);
+
+  useEffect(() => onSnapshot(collection(db, "communities", group.id, "members"), (s) => setMembers(s.docs.map((d) => d.data() as Member)), () => setMembers([])), [group.id]);
+  useEffect(() => {
+    if (!members) return;
+    let live = true;
+    const board = range === "week" ? weekId() : "all";
+    Promise.all(members.map(async (m) => {
+      try {
+        const d = await getDoc(doc(db, "leaderboards", board, "users", m.uid));
+        const x = d.exists() ? d.data() : null;
+        return [m.uid, { minutes: Number(x?.minutes) || 0, hidden: x?.hidden === true && m.uid !== me?.uid }] as const;
+      } catch { return [m.uid, { minutes: 0, hidden: false }] as const; }
+    })).then((e) => { if (live) setMins(Object.fromEntries(e)); });
+    return () => { live = false; };
+  }, [members, range, me?.uid]);
+
+  const dur = (min: number) => min >= 60 ? `${n(Math.floor(min / 60))}${t("ঘ", "h")} ${n(min % 60)}${t("মি", "m")}` : `${n(min)}${t("মি", "m")}`;
+  const rows = (members || []).map((m) => ({ m, ...(mins?.[m.uid] || { minutes: 0, hidden: false }) }))
+    .sort((a, b) => Number(a.hidden) - Number(b.hidden) || b.minutes - a.minutes);
+  const top = Math.max(1, ...rows.filter((r) => !r.hidden).map((r) => r.minutes));
+  const total = rows.filter((r) => !r.hidden).reduce((a, r) => a + r.minutes, 0);
+  const medal = ["text-amber-500", "text-slate-400", "text-orange-500"];
+  let place = 0;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="p-1 rounded-xl bg-slate-200/60 dark:bg-white/5 grid grid-cols-2">
+        {(["week", "all"] as const).map((k) => (
+          <button key={k} onClick={() => { setMins(null); setRange(k); }} className={`py-1.5 rounded-lg text-xs font-bold transition-all ${range === k ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
+            {k === "week" ? t("এই সপ্তাহ", "This week") : t("সব সময়", "All time")}
+          </button>
+        ))}
+      </div>
+      <div className="surface rounded-2xl p-4 flex items-center justify-between">
+        <div><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t("গ্রুপের মোট ফোকাস", "Group focus total")}</p><p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">{mins ? dur(total) : "…"}</p></div>
+        <span className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 flex items-center justify-center"><Medal size={22} /></span>
+      </div>
+      {!mins || !members ? (
+        <p className="text-center text-sm text-slate-400 py-8">{t("লোড হচ্ছে...", "Loading...")}</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r) => {
+            const rank = r.hidden ? 0 : ++place;
+            return (
+              <div key={r.m.uid} className={`surface rounded-2xl px-3.5 py-3 flex items-center gap-3 ${r.m.uid === me?.uid ? "!border-indigo-400/60" : ""}`}>
+                <span className={`w-6 text-center text-sm font-extrabold tabular-nums ${rank > 0 && rank <= 3 ? medal[rank - 1] : "text-slate-400"}`}>{rank > 0 ? n(rank) : "–"}</span>
+                {avatarOf(r.m.name, r.m.photoURL, "w-9 h-9 text-sm")}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{r.m.name}{r.m.uid === me?.uid && <span className="text-slate-400 font-medium"> ({t("তুমি", "you")})</span>}</p>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 dark:bg-white/[0.06] overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700" style={{ width: `${r.hidden ? 0 : Math.round((r.minutes / top) * 100)}%` }} />
+                  </div>
+                </div>
+                <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300 tabular-nums shrink-0">{r.hidden ? t("লুকানো", "Hidden") : dur(r.minutes)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
