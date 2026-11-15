@@ -116,7 +116,7 @@ export default function LeaderboardPage() {
                     </div>
                     <div className="min-w-0">
                       <h4 className={`text-sm md:text-base font-bold truncate ${isMe ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-800 dark:text-slate-200'}`}>{label}</h4>
-                      <p className="text-[10px] md:text-xs font-medium text-slate-500 mt-0.5">🍅 {t(`${n(user.sessions)}টা সেশন`, `${user.sessions} sessions`)}</p>
+                      <p className="text-[10px] md:text-xs font-medium text-slate-500 mt-0.5 inline-flex items-center gap-1"><Timer size={12} /> {t(`${n(user.sessions)}টা সেশন`, `${user.sessions} sessions`)}</p>
                     </div>
                   </div>
                   <span className={`shrink-0 text-xs md:text-sm font-bold px-2.5 py-1.5 rounded-lg ${

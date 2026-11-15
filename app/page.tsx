@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Play, Pause, X, ChevronDown, ArrowLeft, 
   Calendar, CalendarDays, CheckCircle2, ChevronRight, 
-  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2,
+  Plus, Circle, Clock, Flag, Tag, Repeat, Bell, Send, Square, SkipForward, ListTodo, Settings2, Trash2, Timer,
   
 } from "lucide-react";
 // 🚨 MODES বাদ দিয়ে শুধু useTimer ইমপোর্ট করা হলো
@@ -136,7 +136,7 @@ export default function PomodoroPage() {
     const settings = readSettings();
     playRingtone(settings.ringtone || "Default");
     vibrate();
-    if (finishedMode === 'pomodoro') notify(t("ফোকাস সেশন শেষ 🍅", "Focus session complete 🍅"), t("দারুণ! এবার একটু বিরতি নাও।", "Great work! Time for a break."));
+    if (finishedMode === 'pomodoro') notify(t("ফোকাস সেশন শেষ ✅", "Focus session complete ✅"), t("দারুণ! এবার একটু বিরতি নাও।", "Great work! Time for a break."));
     else notify(t("বিরতি শেষ ⏰", "Break is over ⏰"), t("পরের ফোকাস সেশনের জন্য তৈরি?", "Ready for the next focus session?"));
   };
 
@@ -718,7 +718,7 @@ export default function PomodoroPage() {
             <span className="text-[11px] font-bold uppercase tracking-wider bg-white/70 text-indigo-600 dark:bg-white/15 dark:text-white px-2.5 py-1 rounded-full">
               {timerRunning ? (isActive ? t("ফোকাস চলছে", "Focusing now") : t("থেমে আছে", "Paused")) : t("পরের কাজ", "Up next")}
             </span>
-            {nextTask && <span className="text-xs font-bold text-slate-500 dark:text-white/85">🍅 {n(nextTask.completedPomodoros || 0)}/{n(nextTask.estimatedPomodoros || 1)}</span>}
+            {nextTask && <span className="text-xs font-bold text-slate-500 dark:text-white/85 inline-flex items-center gap-1"><Timer size={13} /> {n(nextTask.completedPomodoros || 0)}/{n(nextTask.estimatedPomodoros || 1)}</span>}
           </div>
           <h2 className="text-xl font-extrabold mt-3 leading-snug line-clamp-2">
             {nextTask ? nextTask.title : t("আজ কী পড়বে? একটা কাজ যোগ করো", "What will you study? Add a task")}
@@ -917,8 +917,8 @@ export default function PomodoroPage() {
       ))}
       <div className="absolute inset-x-0 top-[22%] flex justify-center">
         <button onClick={() => setCelebrate(false)} className="pointer-events-auto rounded-3xl px-6 py-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white dark:border-white/10 shadow-2xl text-center" style={{ animation: 'pop-in 450ms cubic-bezier(.2,.8,.2,1)' }}>
-          <p className="text-3xl">🍅</p>
-          <p className="mt-1 text-base font-extrabold text-slate-900 dark:text-white">{t("একটা পোমোডোরো শেষ!", "Pomodoro complete!")}</p>
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"><Timer size={26} /></span>
+          <p className="mt-2 text-base font-extrabold text-slate-900 dark:text-white">{t("একটা ফোকাস সেশন শেষ!", "Focus session complete!")}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t("দারুণ মনোযোগ। এবার একটু বিরতি।", "Great focus. Time for a short break.")}</p>
         </button>
       </div>
@@ -1057,7 +1057,7 @@ export default function PomodoroPage() {
             </div>
 
             <div className="flex flex-wrap gap-2 mb-4 px-1">
-              <span className="text-[10px] font-bold bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 px-2 py-1 rounded-md flex items-center gap-1">🍅 {n(estimatedPomos)}</span>
+              <span className="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-md flex items-center gap-1"><Timer size={11} /> {n(estimatedPomos)}</span>
               {addDate !== "Today" && <span className="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-md">{listLabel(addDate)}</span>}
               {addPriority > 0 && <span className={`text-[10px] font-bold bg-slate-100 dark:bg-[#3a4a63] px-2 py-1 rounded-md ${getPriorityColor(addPriority)}`}>{getPriorityLabel(addPriority)}</span>}
               {addCategory !== "HSC" && <span className="text-[10px] font-bold bg-slate-100 dark:bg-[#3a4a63] text-slate-400 px-2 py-1 rounded-md">{addCategory}</span>}
@@ -1159,7 +1159,7 @@ export default function PomodoroPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500/80">{t("ফোকাস সেশন", "Focus sessions")}</p>
-                    <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">🍅 {n(done)}<span className="text-slate-400 font-bold text-lg"> / {n(est)}</span></p>
+                    <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5 flex items-center gap-1.5"><Timer size={22} className="text-indigo-500" /> {n(done)}<span className="text-slate-400 font-bold text-lg"> / {n(est)}</span></p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{t(`আনুমানিক ${dur(est * focusLen)} · প্রতিটা ${n(focusLen)} মিনিট`, `About ${dur(est * focusLen)} · ${focusLen} min each`)}</p>
                   </div>
                   <div className="flex items-center gap-1 bg-white dark:bg-black/20 rounded-xl p-1 border border-rose-100 dark:border-white/10">
