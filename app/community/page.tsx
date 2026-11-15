@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, Palette, Medal, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Send, Users, MessageSquare, Hash, Plus, X, Check, Crown, UserPlus, LogOut, Trash2, Clock, Search, BookOpen, GraduationCap, Stethoscope, FlaskConical, Brain, Rocket, Flame, Trophy, Target, Atom, Dna, Lightbulb, Palette, Medal, Lock, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged, type User } from "firebase/auth";
@@ -13,11 +13,11 @@ import { useLang } from "@/lib/i18n";
 import { weekId } from "@/lib/leaderboard";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
-  writeBatch, getCountFromServer, type Timestamp,
+  writeBatch, getCountFromServer, updateDoc, type Timestamp,
 } from "firebase/firestore";
 
 interface Message { id: string; text: string; uid: string; displayName: string; photoURL: string | null; createdAt: Timestamp | null }
-interface Group { id: string; name: string; description: string; icon?: string; color?: string; ownerUid?: string; ownerName?: string }
+interface Group { id: string; name: string; description: string; icon?: string; color?: string; privacy?: "open" | "closed"; ownerUid?: string; ownerName?: string }
 interface Member { uid: string; name: string; photoURL: string | null; role: "owner" | "member" }
 interface JoinRequest { uid: string; name: string; photoURL: string | null; note: string }
 type Status = "owner" | "member" | "pending" | "none";
@@ -127,16 +127,56 @@ export default function CommunityPage() {
   const discover = communities.filter((g) => status[g.id] !== "owner" && status[g.id] !== "member")
     .filter((g) => !search.trim() || g.name.toLowerCase().includes(search.trim().toLowerCase()));
 
-  const createGroup = async (name: string, description: string, icon: string, color: string) => {
+  // খোলা গ্রুপে চাপলেই জয়েন; বন্ধ গ্রুপে অনুরোধ পাঠাতে হয়
+  const joinOpen = async (g: Group) => {
+    if (!me) return;
+    try {
+      await setDoc(doc(db, "communities", g.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "member", joinedAt: serverTimestamp() });
+      setStatus((st) => ({ ...st, [g.id]: "member" }));
+      setActive(g);
+    } catch { flash(t("জয়েন করা যায়নি, আবার চেষ্টা করো", "Couldn't join, try again")); }
+  };
+  const openGroup = (g: Group) => {
+    if ((status[g.id] || "none") === "none" && g.privacy === "open") void joinOpen(g);
+    else setActive(g);
+  };
+
+  // নতুন মেসেজের চিহ্ন: প্রতিটা গ্রুপের শেষ মেসেজের সময় বনাম এই ফোনে শেষবার কখন দেখেছি
+  const [lastMsg, setLastMsg] = useState<Record<string, { ms: number; uid: string }>>({});
+  const [seen, setSeen] = useState<Record<string, number>>({});
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage শুধু ব্রাউজারে, মাউন্টের পর পড়ি
+  useEffect(() => { try { setSeen(JSON.parse(localStorage.getItem("pomodoro_chat_seen") || "{}")); } catch { /* প্রাইভেট মোড */ } }, []);
+  const markSeen = useCallback((gid: string) => {
+    setSeen((p) => { const next = { ...p, [gid]: Date.now() }; try { localStorage.setItem("pomodoro_chat_seen", JSON.stringify(next)); } catch { /* প্রাইভেট মোড */ } return next; });
+  }, []);
+  const mineKey = communities.filter((g) => status[g.id] === "owner" || status[g.id] === "member").map((g) => g.id).join(",");
+  useEffect(() => {
+    if (!me || !mineKey) return;
+    const offs = mineKey.split(",").map((id) => onSnapshot(query(collection(db, "communities", id, "messages"), orderBy("createdAt", "desc"), limit(1)), (snap) => {
+      const d = snap.docs[0]?.data();
+      const ms = (d?.createdAt as Timestamp | null)?.toMillis?.();
+      if (d && ms) setLastMsg((p) => ({ ...p, [id]: { ms, uid: d.uid as string } }));
+      // এই ফোনে গ্রুপটা প্রথমবার দেখলে পুরনো মেসেজকে "নতুন" ধরি না
+      setSeen((p) => { if (p[id] !== undefined) return p; const next = { ...p, [id]: Date.now() }; try { localStorage.setItem("pomodoro_chat_seen", JSON.stringify(next)); } catch { /* প্রাইভেট মোড */ } return next; });
+    }, () => undefined));
+    return () => offs.forEach((f) => f());
+  }, [me, mineKey]);
+  const isUnread = (gid: string) => {
+    const l = lastMsg[gid];
+    return Boolean(l && l.uid !== me?.uid && l.ms > (seen[gid] ?? 0));
+  };
+
+  const createGroup = async (name: string, description: string, icon: string, color: string, privacy: "open" | "closed") => {
     if (!me) return;
     const ref = doc(collection(db, "communities"));
     const batch = writeBatch(db);
-    batch.set(ref, { name: name.trim(), description: description.trim(), icon, color, ownerUid: me.uid, ownerName: myName, createdAt: serverTimestamp() });
+    batch.set(ref, { name: name.trim(), description: description.trim(), icon, color, privacy, ownerUid: me.uid, ownerName: myName, createdAt: serverTimestamp() });
     batch.set(doc(db, "communities", ref.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "owner", joinedAt: serverTimestamp() });
     try {
       await batch.commit();
       setCreating(false);
-      setActive({ id: ref.id, name: name.trim(), description: description.trim(), icon, color, ownerUid: me.uid, ownerName: myName });
+      setStatus((st) => ({ ...st, [ref.id]: "owner" }));
+      setActive({ id: ref.id, name: name.trim(), description: description.trim(), icon, color, privacy, ownerUid: me.uid, ownerName: myName });
       flash(t("গ্রুপ তৈরি হয়েছে 🎉", "Group created 🎉"));
     } catch { flash(t("গ্রুপ বানানো যায়নি, আবার চেষ্টা করো", "Couldn't create the group, try again")); }
   };
@@ -181,7 +221,8 @@ export default function CommunityPage() {
     const q = query(collection(db, ...messagesPath(active)), orderBy("createdAt", "desc"), limit(50));
     return onSnapshot(q, (s) => setMessages(s.docs.map((d) => ({ id: d.id, ...d.data() } as Message)).reverse()), () => setMessages([]));
   }, [active, me, canChat]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- চ্যাট খোলা থাকলে নতুন মেসেজ আসামাত্র "দেখা হয়েছে" ধরি
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); if (active && messages.length) markSeen(active.id); }, [messages, active, markSeen]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,7 +327,7 @@ export default function CommunityPage() {
         )}
 
         {panel && (
-          <MembersPanel group={active} isOwner={st === "owner"} me={me} onClose={() => setPanel(false)} onLeave={() => leaveGroup(active)} onDelete={() => deleteGroup(active)} flash={flash} t={t} n={n} />
+          <MembersPanel group={active} isOwner={st === "owner"} me={me} onClose={() => setPanel(false)} onPrivacy={(p) => setActive({ ...active, privacy: p })} onLeave={() => leaveGroup(active)} onDelete={() => deleteGroup(active)} flash={flash} t={t} n={n} />
         )}
         {bgPicker && (
           <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 dark:bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
@@ -359,15 +400,16 @@ export default function CommunityPage() {
           {list.map((g, idx) => {
             const st = status[g.id] || "none";
             return (
-              <button key={g.id} onClick={() => setActive(g)} style={{ animationDelay: `${Math.min(idx, 8) * 60}ms` }}
+              <button key={g.id} onClick={() => openGroup(g)} style={{ animationDelay: `${Math.min(idx, 8) * 60}ms` }}
                 className="surface press w-full text-left rounded-2xl p-4 flex items-center gap-4 hover:!border-indigo-500/50 animate-in fade-in slide-in-from-bottom-4">
                 <GroupLogo icon={g.icon} color={g.color} size={46} />
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5">
-                    {g.name}{st === "owner" && <Crown size={13} className="text-amber-500 shrink-0" />}
+                    {g.name}{g.privacy !== "open" && <Lock size={11} className="text-slate-400 shrink-0" />}{st === "owner" && <Crown size={13} className="text-amber-500 shrink-0" />}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{desc(g) || (g.ownerName ? t(`${g.ownerName} এর গ্রুপ`, `By ${g.ownerName}`) : "")}</p>
+                  <p className={`text-xs line-clamp-1 ${isUnread(g.id) ? "font-bold text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>{isUnread(g.id) ? t("নতুন মেসেজ এসেছে", "New messages") : desc(g) || (g.ownerName ? t(`${g.ownerName} এর গ্রুপ`, `By ${g.ownerName}`) : "")}</p>
                 </div>
+                {isUnread(g.id) && <span aria-label={t("নতুন মেসেজ", "New message")} className="shrink-0 w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_0_3px_rgba(99,102,241,0.25)] animate-pulse" />}
                 {(pending[g.id] || 0) > 0 && st === "owner"
                   ? <span className="shrink-0 text-[11px] font-extrabold text-white bg-rose-500 px-2.5 py-1 rounded-full">{n(pending[g.id])} {t("অনুরোধ", "requests")}</span>
                   : st === "pending"
@@ -389,11 +431,12 @@ export default function CommunityPage() {
 type TFn = (bn: string, en: string) => string;
 type NFn = (v: number | string) => string;
 
-function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: (name: string, description: string, icon: string, color: string) => Promise<void>; t: TFn }) {
+function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: (name: string, description: string, icon: string, color: string, privacy: "open" | "closed") => Promise<void>; t: TFn }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("book");
   const [color, setColor] = useState("indigo");
+  const [privacy, setPrivacy] = useState<"open" | "closed">("closed");
   const [busy, setBusy] = useState(false);
   const ok = name.trim().length >= 2 && !busy;
   return (
@@ -422,11 +465,19 @@ function CreateSheet({ onClose, onCreate, t }: { onClose: () => void; onCreate: 
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("গ্রুপের নাম", "Group name")}</label>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder={t("যেমন: মেডিকেল ২০২৭ ব্যাচ", "e.g. Medical 2027 batch")}
           className="mt-1 mb-4 w-full bg-slate-100 dark:bg-white/5 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400/50" />
+        <div className="mb-4 p-1 rounded-xl bg-slate-100 dark:bg-white/5 grid grid-cols-2">
+          {(["open", "closed"] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setPrivacy(k)} className={`py-2 rounded-lg text-xs font-bold transition-all ${privacy === k ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
+              {k === "open" ? t("🌐 খোলা", "🌐 Open") : t("🔒 বন্ধ", "🔒 Closed")}
+            </button>
+          ))}
+        </div>
+        <p className="-mt-2 mb-4 text-[11px] text-slate-400">{privacy === "open" ? t("খোলা: যে কেউ চাপলেই সরাসরি ঢুকে যাবে।", "Open: anyone can tap and join right away.") : t("বন্ধ: অনুরোধ পাঠাতে হবে, তুমি মেনে নিলে ঢুকবে।", "Closed: people send a request and get in once you accept.")}</p>
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("কী নিয়ে গ্রুপ (ঐচ্ছিক)", "What it's about (optional)")}</label>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} rows={3} placeholder={t("সবাই জয়েন করার আগে এটা দেখবে", "Everyone sees this before asking to join")}
           className="mt-1 w-full bg-slate-100 dark:bg-white/5 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400/50 resize-none" />
         <p className="text-[11px] text-slate-400 mt-2">{t("তুমি গ্রুপের মালিক হবে। অন্যরা জয়েন অনুরোধ পাঠাবে, তুমি মেনে নিলে তারা চ্যাট করতে পারবে।", "You'll be the owner. Others send join requests; once you accept they can chat.")}</p>
-        <button disabled={!ok} onClick={async () => { setBusy(true); await onCreate(name, description, icon, color); setBusy(false); }}
+        <button disabled={!ok} onClick={async () => { setBusy(true); await onCreate(name, description, icon, color, privacy); setBusy(false); }}
           className={`press mt-4 w-full py-3.5 rounded-2xl text-sm font-extrabold transition-all ${ok ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" : "bg-slate-200 dark:bg-white/5 text-slate-400"}`}>
           {busy ? t("তৈরি হচ্ছে...", "Creating...") : t("গ্রুপ তৈরি করো", "Create group")}
         </button>
@@ -464,8 +515,8 @@ function JoinCard({ group, status, onRequest, onCancel, t, n }: { group: Group; 
   );
 }
 
-function MembersPanel({ group, isOwner, me, onClose, onLeave, onDelete, flash, t, n }: {
-  group: Group; isOwner: boolean; me: User | null; onClose: () => void; onLeave: () => void; onDelete: () => void; flash: (m: string) => void; t: TFn; n: NFn;
+function MembersPanel({ group, isOwner, me, onClose, onPrivacy, onLeave, onDelete, flash, t, n }: {
+  group: Group; isOwner: boolean; me: User | null; onClose: () => void; onPrivacy: (p: "open" | "closed") => void; onLeave: () => void; onDelete: () => void; flash: (m: string) => void; t: TFn; n: NFn;
 }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
@@ -530,6 +581,19 @@ function MembersPanel({ group, isOwner, me, onClose, onLeave, onDelete, flash, t
           </div>
         </div>
         <div className="px-5 py-4 border-t border-slate-100 dark:border-white/5">
+          {isOwner && (
+            <div className="mb-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">{t("কে ঢুকতে পারবে", "Who can join")}</p>
+              <div className="p-1 rounded-xl bg-slate-100 dark:bg-white/5 grid grid-cols-2">
+                {(["open", "closed"] as const).map((k) => (
+                  <button key={k} onClick={async () => { try { await updateDoc(doc(db, "communities", group.id), { privacy: k }); onPrivacy(k); } catch { flash(t("বদলানো যায়নি", "Couldn't change")); } }}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all ${(group.privacy || "closed") === k ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
+                    {k === "open" ? t("🌐 খোলা", "🌐 Open") : t("🔒 বন্ধ", "🔒 Closed")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {isOwner ? (
             confirmDelete ? (
               <div className="space-y-2">
