@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Clock, Flame, Target, Trophy, BarChart3, CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Grid3x3 } from "lucide-react";
+import { ArrowLeft, Clock, Flame, Target, Trophy, BarChart3, CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Medal, CalendarCheck, Timer, Sparkles } from "lucide-react";
 import { auth, db } from "@/lib/firebaseClient";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, orderBy, onSnapshot, where } from "firebase/firestore";
@@ -23,7 +23,7 @@ interface Session {
 type TimeFilter = 'Today' | 'Week' | 'Month' | 'Year';
 
 const RECENT_DAYS = 120;          // streak আর heatmap এর জন্য সব সময় শেষ ১২০ দিন পড়ি
-const HEAT_WEEKS = 13;            // heatmap: শেষ ১৩ সপ্তাহ (~৩ মাস)
+const HEAT_WEEKS = 13;            // শেষ ৩ মাস: ১৩ সপ্তাহ
 const isFocus = (s: Session) => !s.mode || s.mode === 'pomodoro';
 const dayKey = (d: Date) => d.toLocaleDateString('en-CA');   // স্থানীয় YYYY-MM-DD
 
@@ -71,7 +71,7 @@ export default function AnalyticsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activeFilter, setActiveFilter] = useState<TimeFilter>('Week');
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
   // ✅ Offset state for Previous/Next navigation (0 = Current, -1 = Previous, etc.)
   const [dateOffset, setDateOffset] = useState<number>(0);
@@ -187,11 +187,26 @@ export default function AnalyticsPage() {
     const d = new Date(heatStart); d.setDate(heatStart.getDate() + w * 7 + r);
     return { key: dayKey(d), date: d, minutes: byDay.get(dayKey(d)) || 0, future: d > now };
   }));
-  const heatLevel = (m: number) => m === 0 ? 'bg-slate-100 dark:bg-white/5' : m < 30 ? 'bg-indigo-200 dark:bg-indigo-900' : m < 60 ? 'bg-indigo-300 dark:bg-indigo-700' : m < 120 ? 'bg-indigo-500' : 'bg-indigo-700 dark:bg-indigo-300';
   const heatCells = heatWeeks.flat();
   const heatTotal = heatCells.reduce((a, c) => a + c.minutes, 0);
   const heatDays = heatCells.filter(c => c.minutes > 0).length;
-  const pickedDay = heatCells.find(c => c.key === selectedDay);
+  // শেষ ৩ মাসের হিসাব: সপ্তাহ ধরে মোট, সপ্তাহের কোন বারে কত, সেরা দিন
+  const weekTotals = heatWeeks.map((w, i) => ({ start: w[0].date, end: w[6].date, minutes: w.reduce((a, c) => a + c.minutes, 0), current: i === HEAT_WEEKS - 1 }));
+  const maxWeek = Math.max(1, ...weekTotals.map(w => w.minutes));
+  const avgPerDay = heatDays > 0 ? Math.round(heatTotal / heatDays) : 0;
+  const bestDay = heatCells.reduce((best, c) => (c.minutes > best.minutes ? c : best), heatCells[0]);
+  const bestWeek = weekTotals.reduce((best, w) => (w.minutes > best.minutes ? w : best), weekTotals[0]);
+  const WEEKDAYS = [t('শনি', 'Sat'), t('রবি', 'Sun'), t('সোম', 'Mon'), t('মঙ্গল', 'Tue'), t('বুধ', 'Wed'), t('বৃহ', 'Thu'), t('শুক্র', 'Fri')];
+  const weekdayAvg = WEEKDAYS.map((_, r) => {
+    const cells = heatWeeks.map(w => w[r]).filter(c => !c.future);
+    return cells.length ? Math.round(cells.reduce((a, c) => a + c.minutes, 0) / cells.length) : 0;
+  });
+  const WEEKDAYS_FULL = ['শনিবার', 'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার'];
+  const maxWeekday = Math.max(1, ...weekdayAvg);
+  const topWeekday = weekdayAvg.indexOf(Math.max(...weekdayAvg));
+  const pickedWeek = selectedWeek !== null ? weekTotals[selectedWeek] : null;
+  const shortDate = (d: Date) => d.toLocaleDateString(loc, { day: 'numeric', month: 'short' });
+  const hoursLabel = (m: number) => n(Math.round((m / 60) * 10) / 10);
 
   // --- CATEGORY BREAKDOWN ---
   const categoryStats = focusSessions.reduce((acc: Record<string, number>, curr) => {
@@ -497,51 +512,60 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* HEATMAP: শেষ ৩ মাসের প্রতিদিন */}
+        {/* শেষ ৩ মাস: সপ্তাহ ধরে বার, কোন বারে বেশি পড়ো, আর কয়েকটা সংখ্যা */}
         <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-5 shadow-sm animate-in fade-in slide-in-from-bottom-8 duration-500 delay-300">
-          <div className="flex justify-between items-start mb-4 gap-3">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                <Grid3x3 size={18} className="text-indigo-500" /> {t("শেষ ৩ মাস", "Last 3 months")}
-              </h3>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">{t(`${n(heatDays)} দিন পড়েছ · মোট ${dur(heatTotal)}`, `Studied ${heatDays} days · ${dur(heatTotal)} total`)}</p>
-            </div>
+          <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+            <CalendarCheck size={18} className="text-indigo-500" /> {t("শেষ ৩ মাস", "Last 3 months")}
+          </h3>
+          <p className="text-[11px] font-medium text-slate-400 mt-1">{t("প্রতিটা বার = এক সপ্তাহ (শনি থেকে শুক্র)", "Each bar = one week (Sat to Fri)")}</p>
+
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            {([
+              [<Clock key="a" size={15} />, t("মোট ফোকাস", "Total focus"), dur(heatTotal), "text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10"],
+              [<CalendarDays key="b" size={15} />, t("পড়েছ", "Days studied"), t(`${n(heatDays)} দিন`, `${heatDays} days`), "text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10"],
+              [<Timer key="c" size={15} />, t("পড়ার দিনে গড়", "Avg on study days"), dur(avgPerDay), "text-sky-600 dark:text-sky-300 bg-sky-50 dark:bg-sky-500/10"],
+              [<Medal key="d" size={15} />, t("সেরা দিন", "Best day"), bestDay && bestDay.minutes > 0 ? `${dur(bestDay.minutes)} · ${shortDate(bestDay.date)}` : "–", "text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10"],
+            ] as [React.ReactNode, string, string, string][]).map(([icon, label, value, tone]) => (
+              <div key={label} className="rounded-2xl border border-slate-100 dark:border-white/5 p-3">
+                <span className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-full ${tone}`}>{icon}{label}</span>
+                <p className="mt-2 text-[15px] font-extrabold text-slate-900 dark:text-white tabular-nums truncate">{value}</p>
+              </div>
+            ))}
           </div>
 
-          <div className="flex gap-2">
-            <div className="flex flex-col justify-between text-[9px] font-bold text-slate-400 py-0.5">
-              {[t('শনি', 'Sat'), t('সোম', 'Mon'), t('বুধ', 'Wed'), t('শুক্র', 'Fri')].map((d) => <span key={d}>{d}</span>)}
-            </div>
-            <div className="flex-1 grid gap-1" style={{ gridTemplateColumns: `repeat(${HEAT_WEEKS}, minmax(0, 1fr))` }}>
-              {heatWeeks.map((week, w) => (
-                <div key={w} className="grid grid-rows-7 gap-1">
-                  {week.map((c) => (
-                    <button
-                      type="button"
-                      key={c.key}
-                      disabled={c.future}
-                      onClick={() => setSelectedDay(selectedDay === c.key ? null : c.key)}
-                      aria-label={`${c.date.toLocaleDateString(loc, { day: 'numeric', month: 'short' })}: ${dur(c.minutes)}`}
-                      className={`aspect-square w-full rounded-[4px] transition-transform ${c.future ? 'opacity-0' : heatLevel(c.minutes)} ${selectedDay === c.key ? 'ring-2 ring-orange-400 scale-110' : ''} ${c.key === dayKey(now) ? 'outline outline-1 outline-indigo-400/60' : ''}`}
-                    />
-                  ))}
+          <p className="mt-5 mb-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">{t("সপ্তাহে কত ঘণ্টা পড়েছ", "Hours studied per week")}</p>
+          <div className="flex items-end gap-1 h-36">
+            {weekTotals.map((w, i) => (
+              <button type="button" key={i} onClick={() => setSelectedWeek(selectedWeek === i ? null : i)} aria-label={`${shortDate(w.start)}: ${dur(w.minutes)}`} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1 group">
+                <span className="text-[8px] font-bold text-slate-400 tabular-nums">{w.minutes > 0 ? hoursLabel(w.minutes) : ''}</span>
+                <span className={`w-full rounded-t-md transition-all ${w.current ? 'bg-gradient-to-t from-indigo-500 to-violet-400' : w.minutes === maxWeek ? 'bg-emerald-400 dark:bg-emerald-500' : 'bg-indigo-200 dark:bg-indigo-900'} ${selectedWeek === i ? 'ring-2 ring-orange-400' : ''}`} style={{ height: `${Math.max(w.minutes > 0 ? 4 : 2, Math.round((w.minutes / maxWeek) * 100))}%`, opacity: w.minutes > 0 ? 1 : 0.35 }} />
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-between mt-1.5 text-[9px] font-bold text-slate-400">
+            <span>{shortDate(weekTotals[0].start)}</span><span>{t("এই সপ্তাহ", "This week")}</span>
+          </div>
+          <p className="mt-2 text-xs font-bold text-slate-600 dark:text-slate-300 min-h-[1rem]">
+            {pickedWeek
+              ? `${shortDate(pickedWeek.start)} – ${shortDate(pickedWeek.end)}: ${pickedWeek.minutes > 0 ? dur(pickedWeek.minutes) : t('পড়া হয়নি', 'no focus')}`
+              : bestWeek.minutes > 0
+                ? <span className="text-slate-400 font-medium">{t(`সবচেয়ে ভালো সপ্তাহ: ${shortDate(bestWeek.start)} থেকে, ${dur(bestWeek.minutes)} (সবুজ বার)। বারে চাপলে সময় দেখো`, `Best week: from ${shortDate(bestWeek.start)}, ${dur(bestWeek.minutes)} (green bar). Tap a bar for details`)}</span>
+                : <span className="text-slate-400 font-medium">{t("বারে চাপলে সেই সপ্তাহের সময় দেখবে", "Tap a bar to see that week")}</span>}
+          </p>
+
+          <p className="mt-5 mb-2 text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">{t("কোন বারে বেশি পড়ো", "Which day you study most")} <Sparkles size={12} className="text-amber-500" /></p>
+          <div className="space-y-1.5">
+            {WEEKDAYS.map((d, r) => (
+              <div key={d} className="flex items-center gap-2">
+                <span className={`w-9 text-[11px] font-bold ${r === topWeekday && weekdayAvg[r] > 0 ? 'text-indigo-600 dark:text-indigo-300' : 'text-slate-400'}`}>{d}</span>
+                <div className="flex-1 h-2.5 rounded-full bg-slate-100 dark:bg-white/[0.06] overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-700 ${r === topWeekday ? 'bg-gradient-to-r from-indigo-500 to-violet-500' : 'bg-indigo-200 dark:bg-indigo-900'}`} style={{ width: `${Math.round((weekdayAvg[r] / maxWeekday) * 100)}%` }} />
                 </div>
-              ))}
-            </div>
+                <span className="w-14 text-right text-[10px] font-bold text-slate-500 tabular-nums">{weekdayAvg[r] > 0 ? dur(weekdayAvg[r]) : '–'}</span>
+              </div>
+            ))}
           </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 min-h-[1rem]">
-              {pickedDay
-                ? `${pickedDay.date.toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short' })}: ${pickedDay.minutes > 0 ? dur(pickedDay.minutes) : t('পড়া হয়নি', 'no focus')}`
-                : <span className="text-slate-400 font-medium">{t("ঘরে চাপলে সেই দিনের সময়", "Tap a day to see its time")}</span>}
-            </p>
-            <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 shrink-0">
-              {t("কম", "Less")}
-              {[0, 20, 45, 90, 150].map((m) => <span key={m} className={`w-2.5 h-2.5 rounded-[3px] ${heatLevel(m)}`} />)}
-              {t("বেশি", "More")}
-            </div>
-          </div>
+          {weekdayAvg[topWeekday] > 0 && <p className="mt-3 text-[11px] text-slate-400">{t(`তুমি সবচেয়ে বেশি পড়ো ${WEEKDAYS_FULL[topWeekday]}, গড়ে ${dur(weekdayAvg[topWeekday])}। (প্রতিদিনের গড়)`, `You study most on ${WEEKDAYS[topWeekday]}, about ${dur(weekdayAvg[topWeekday])} on average.`)}</p>}
         </div>
 
       </div>
