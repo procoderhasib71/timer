@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { deleteUser, EmailAuthProvider, GoogleAuthProvider, onAuthStateChanged, reauthenticateWithCredential, reauthenticateWithPopup, signOut, type User } from "firebase/auth";
 import { auth } from "@/lib/firebaseClient";
 import { ADMCQ_URL } from "@/lib/admcqAccount";
@@ -54,20 +54,24 @@ export default function DeleteAccount() {
 
   if (!user) return null;
   const input = "w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none focus:border-rose-500 text-slate-800 dark:text-slate-200 text-sm";
+  if (!open) {
+    return (
+      <button onClick={() => { setTyped(""); setPassword(""); setError(""); setOpen(true); }}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-rose-200 dark:border-rose-500/25 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 font-bold text-sm transition-all active:scale-95">
+        <Trash2 size={17} /> {t("অ্যাকাউন্ট মুছুন", "Delete account")}
+      </button>
+    );
+  }
   return (
-    <div className="space-y-3">
+    <div className="col-span-2 space-y-3 bg-white dark:bg-[#1e293b] border border-rose-200 dark:border-rose-500/25 rounded-3xl p-4">
       <div>
         <h3 className="font-bold text-rose-600 dark:text-rose-400">{t("অ্যাকাউন্ট মুছে ফেলুন", "Delete account")}</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          {t("Shongi Lab অ্যাকাউন্ট পুরো মুছে যাবে: Pomodoro, Money আর অন্য সব Shongi Lab অ্যাপের হিসাব, প্রোফাইল আর লগইন। ফেরানো যাবে না।",
-            "Your Shongi Lab account will be deleted everywhere: Pomodoro, Money and all other Shongi Lab app data, profile and login. This can't be undone.")}
+          {t("Shongi Lab অ্যাকাউন্ট পুরো মুছে যাবে: Focus, Money আর অন্য সব Shongi Lab অ্যাপের হিসাব, প্রোফাইল আর লগইন। ফেরানো যাবে না।",
+            "Your Shongi Lab account will be deleted everywhere: Focus, Money and all other Shongi Lab app data, profile and login. This can't be undone.")}
         </p>
       </div>
-      {!open ? (
-        <button onClick={() => { setTyped(""); setPassword(""); setError(""); setOpen(true); }} className="w-full py-3 rounded-xl border border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 font-bold text-sm">
-          {t("অ্যাকাউন্ট মুছে ফেলুন", "Delete account")}
-        </button>
-      ) : (
+      {(
         <div className="space-y-3">
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">{t("নিশ্চিত করতে লিখুন", "Type to confirm")}: {WORD}</label>
           <input value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" autoComplete="off" className={input} />

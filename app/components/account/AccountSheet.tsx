@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebaseClient";
 import { useAccount } from "@/app/components/shared/AuthGate";
@@ -10,7 +10,7 @@ import { AvatarBadge, loadMyAvatar, type Look } from "@/lib/avatar";
 import ProfileForm from "./ProfileForm";
 import SettingsPanel from "./SettingsPanel";
 
-// প্রোফাইল আর সেটিংস আলাদা পাতায় না গিয়ে এক শিটে: ফোনে নিচ থেকে ওঠে, বড় স্ক্রিনে ডান পাশ থেকে আসে।
+// সেটিংস এক শিটে (Money র মতো): ফোনে নিচ থেকে ওঠে, বড় স্ক্রিনে ডান পাশ থেকে আসে। ভেতরে "প্রোফাইল এডিট করো" চাপলে প্রোফাইল।
 // যেকোনো জায়গা থেকে useAccountSheet().open("profile" | "settings")।
 
 export type SheetTab = "settings" | "profile";
@@ -56,7 +56,6 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
     return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
-  const TABS: [SheetTab, string][] = [["settings", t("সেটিংস", "Settings")], ["profile", t("প্রোফাইল", "Profile")]];
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end md:items-stretch md:justify-end" role="dialog" aria-modal="true">
@@ -67,29 +66,24 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
         <div className="md:hidden mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-white/15" />
 
         <div className="px-5 pt-4 pb-4 flex items-center gap-3.5">
-          <AvatarBadge name={name} photo={null} look={look} cls="w-12 h-12 text-xl" />
+          {tab === "profile" ? (
+            <button onClick={() => setTab("settings")} aria-label={t("সেটিংসে ফেরো", "Back to settings")} className="p-2.5 -ml-1 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-300/70 dark:hover:bg-white/15 transition-colors active:scale-95">
+              <ArrowLeft size={18} />
+            </button>
+          ) : (
+            <AvatarBadge name={name} photo={null} look={look} cls="w-12 h-12 text-xl" />
+          )}
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">{name}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sub || t("Shongi Lab অ্যাকাউন্ট", "Shongi Lab account")}</p>
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">{tab === "profile" ? t("প্রোফাইল এডিট", "Edit profile") : name}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{tab === "profile" ? t("নাম, ছবি আর পড়াশোনার তথ্য", "Name, photo and study info") : sub || t("Shongi Lab অ্যাকাউন্ট", "Shongi Lab account")}</p>
           </div>
           <button onClick={onClose} aria-label={t("বন্ধ করো", "Close")} className="p-2.5 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-300/70 dark:hover:bg-white/15 transition-colors active:scale-95">
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-5 pb-3">
-          <div className="bg-slate-200/60 dark:bg-white/5 p-1 rounded-2xl flex">
-            {TABS.map(([id, label]) => (
-              <button key={id} onClick={() => setTab(id)}
-                className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${tab === id ? "bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div key={tab} className="flex-1 overflow-y-auto overscroll-contain px-5 pt-2 pb-8 animate-in fade-in duration-200">
-          {tab === "settings" ? <SettingsPanel /> : <ProfileForm onSaved={() => undefined} onLook={setLook} />}
+          {tab === "settings" ? <SettingsPanel onEditProfile={() => setTab("profile")} /> : <ProfileForm onSaved={() => setTimeout(() => setTab("settings"), 900)} onLook={setLook} />}
         </div>
       </div>
     </div>

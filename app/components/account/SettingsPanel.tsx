@@ -5,8 +5,10 @@ import React, { useState, useEffect } from "react";
 import {
   X, ChevronRight, Music, Clock, Coffee,
   RotateCcw, PlayCircle, FastForward, PauseCircle,
-  Palette, AppWindow, Check, LogOut, Languages, Trophy
+  Palette, AppWindow, Check, LogOut, Languages, Trophy, UserRound
 } from "lucide-react";
+import BotLink from "@/app/components/shared/BotLink";
+import { useAccount } from "@/app/components/shared/AuthGate";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -75,7 +77,8 @@ const ListItem = ({
   );
 };
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ onEditProfile }: { onEditProfile?: () => void } = {}) {
+  const { botLinked } = useAccount();
   const router = useRouter();
 
   const { theme, setTheme } = useTheme();
@@ -229,6 +232,15 @@ export default function SettingsPanel() {
     <div className="text-slate-900 dark:text-slate-200 relative">
       <div className="space-y-5">
 
+        {/* অ্যাকাউন্ট: প্রোফাইল এডিট আর মাছরাঙা বট (Money র সেটিংসের মতো একই সাজ) */}
+        <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
+          <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 pt-2">{t("অ্যাকাউন্ট", "Account")}</h2>
+          <ListItem icon={UserRound} title={t("প্রোফাইল এডিট করো", "Edit profile")} onClick={onEditProfile} />
+          <div className="border-t border-slate-100 dark:border-white/5 mt-1 px-2 pt-4 pb-2">
+            <BotLink auth={auth} app="pomodoro" linked={botLinked} text={t("টাইমার শেষ হলে আর টাস্কের সময়ে Telegram এ মেসেজ পাবে, অ্যাপ বন্ধ থাকলেও।", "Get a Telegram message when your timer ends or a task is due, even if this app is closed.")} />
+          </div>
+        </div>
+
         <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 pt-2">{t("টাইমার", "Timer Configuration")}</h2>
           <div className="divide-y divide-slate-100 dark:divide-white/5">
@@ -265,14 +277,13 @@ export default function SettingsPanel() {
         </div>
 
         <div className="pt-2 pb-6">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 font-bold transition-all active:scale-95 border border-red-100 dark:border-red-500/20 shadow-sm"
-          >
-            <LogOut size={20} />
-            {t("লগআউট", "Sign Out")}
-          </button>
-          <div className="mt-6 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-4"><DeleteAccount /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 font-bold text-sm transition-all active:scale-95">
+              <LogOut size={17} /> {t("লগআউট", "Sign out")}
+            </button>
+            <DeleteAccount />
+          </div>
           <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-4">
             <Link href="/privacy" className="underline">Privacy Policy</Link>
             {" · "}

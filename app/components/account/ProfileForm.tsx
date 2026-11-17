@@ -5,7 +5,6 @@ import { User, Save, School, Loader2, Check } from "lucide-react";
 import { auth } from "@/lib/firebaseClient";
 import { saveAccount } from "@/lib/admcqAccount";
 import { useAccount } from "@/app/components/shared/AuthGate";
-import BotLink from "@/app/components/shared/BotLink";
 import { useLang } from "@/lib/i18n";
 import { AVATARS, COLORS, AvatarBadge, fileToPhoto, loadMyAvatar, saveMyAvatar, syncAvatarToGroups, type Look } from "@/lib/avatar";
 
@@ -23,7 +22,7 @@ const chip = (on: boolean) => `px-4 py-2.5 rounded-xl text-sm font-bold transiti
 
 // onSaved না দিলে (প্রথমবার /profile পাতা) রাখার পরে হোমে যাই; শিটে থাকলে শিটেই "রাখা হলো" দেখাই
 export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void; onLook?: (l: Look) => void }) {
-  const { account, setAccount, botLinked } = useAccount();
+  const { account, setAccount } = useAccount();
   const { t } = useLang();
   const [f, setF] = useState({
     name: account?.name || auth.currentUser?.displayName || "",
@@ -154,11 +153,6 @@ export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void;
         </button>
       </form>
 
-      {!firstTime && (
-        <div className={`${box} mt-6`}>
-          <BotLink auth={auth} app="pomodoro" linked={botLinked} text={t("টাইমার শেষ হলে আর টাস্কের সময়ে Telegram এ মেসেজ পাবে, অ্যাপ বন্ধ থাকলেও।", "Get a Telegram message when your timer ends or a task is due, even if this app is closed.")} />
-        </div>
-      )}
     </div>
   );
 }

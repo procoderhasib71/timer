@@ -3,27 +3,23 @@
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { Users, Sun, Moon } from "lucide-react";
+import { Users, Sun, Moon, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useLang } from "@/lib/i18n";
-import { useAccount } from "@/app/components/shared/AuthGate";
 import { useAccountSheet } from "@/app/components/account/AccountSheet";
-import { auth } from "@/lib/firebaseClient";
 
-// বাঁয়ে লোগো আর নাম; ডানে থিম, কমিউনিটি আর নিজের ছবি (চাপলে প্রোফাইল/সেটিংস শিট)। ভাষা বদলানো সেটিংসে।
+// বাঁয়ে লোগো আর নাম; ডানে থিম, কমিউনিটি আর সেটিংস (চাপলে সেটিংস শিট, ভেতরে প্রোফাইল এডিট)। ভাষা বদলানো সেটিংসে।
 export default function TopHeader() {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const { t } = useLang();
-  const { account } = useAccount();
   const sheet = useAccountSheet();
   const [mounted, setMounted] = useState(false);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- standard mounted flag for theme UI
   useEffect(() => setMounted(true), []);
   const dark = mounted && resolvedTheme === "dark";
-  const initial = (account?.name || auth.currentUser?.displayName || "?").charAt(0).toUpperCase();
 
   // যেই পেজগুলোতে এই হেডারটি হাইড থাকবে (নিজেদের হেডার আছে)
   const hiddenPages = ["/login", "/signup", "/community", "/leaderboard", "/analytics", "/settings"];
@@ -50,9 +46,8 @@ export default function TopHeader() {
           <Users size={19} />
         </Link>
         {pathname !== "/profile" && (
-          <button onClick={() => sheet.open("settings")} aria-label={t("প্রোফাইল ও সেটিংস", "Profile and settings")}
-            className="ml-0.5 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white text-sm font-extrabold flex items-center justify-center shadow-md shadow-indigo-500/25 ring-2 ring-white dark:ring-[#0f172a] active:scale-95 transition-transform">
-            {initial}
+          <button onClick={() => sheet.open("settings")} aria-label={t("সেটিংস", "Settings")} title={t("সেটিংস", "Settings")} className={btn}>
+            <Settings size={19} />
           </button>
         )}
       </div>
