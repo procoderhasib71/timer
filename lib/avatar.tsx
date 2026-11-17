@@ -44,8 +44,19 @@ export async function loadMyAvatar(uid: string): Promise<Look> {
     return d.exists() ? { avatar: d.data().avatar || "", avColor: d.data().avColor || "indigo", photo: d.data().photo || "" } : {};
   } catch { return {}; }
 }
-export const saveMyAvatar = (uid: string, look: Look) =>
-  setDoc(ref(uid), { avatar: look.photo ? "" : look.avatar || "", avColor: look.avColor || "indigo", photo: look.photo || "" });
+export async function saveMyAvatar(uid: string, look: Look) {
+  const clean = { avatar: look.photo ? "" : look.avatar || "", avColor: look.avColor || "indigo", photo: look.photo || "" };
+  await setDoc(ref(uid), clean);
+  // খোলা পাতাগুলো (হেডার, শিট, কমিউনিটি) সাথে সাথে নতুনটা দেখাক
+  window.dispatchEvent(new CustomEvent<Look>(AVATAR_EVENT, { detail: clean }));
+}
+export const AVATAR_EVENT = "avatar-changed";
+/** অবতার বদলালে ডাকে; ফেরত দেওয়া ফাংশন চালালে শোনা বন্ধ */
+export function onAvatarChange(fn: (l: Look) => void): () => void {
+  const h = (e: Event) => fn((e as CustomEvent<Look>).detail);
+  window.addEventListener(AVATAR_EVENT, h);
+  return () => window.removeEventListener(AVATAR_EVENT, h);
+}
 
 /** ছবি ফাইল → মাঝখান থেকে কাটা ১৬০×১৬০ JPEG (data URL, ~১০-২০KB): Firestore ডকে সরাসরি রাখা যায় */
 export function fileToPhoto(file: File, size = 160): Promise<string> {

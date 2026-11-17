@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebaseClient";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
-import { AvatarBadge, loadMyAvatar, type Look } from "@/lib/avatar";
+import { AvatarBadge, loadMyAvatar, onAvatarChange, type Look } from "@/lib/avatar";
 import ProfileForm from "./ProfileForm";
 import SettingsPanel from "./SettingsPanel";
 
@@ -45,6 +45,7 @@ function AccountSheet({ tab, setTab, onClose }: { tab: SheetTab; setTab: (t: She
   const level = account?.studyLevel && LEVEL[account.studyLevel];
   const [look, setLook] = useState<Look>({});   // প্রোফাইলে বাছা অবতার (হেডারে দেখাই)
   useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then(setLook); }, []);
+  useEffect(() => onAvatarChange(setLook), []);
   const sub = [level && t(level[0], level[1]), account?.institution].filter(Boolean).join(" · ");
 
   // খোলা থাকলে পেছনের পাতা স্ক্রল হয় না; Esc চাপলে বন্ধ

@@ -32,6 +32,7 @@ export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void;
     hscBatch: account?.hscBatch || "",
   });
   const [look, setLookState] = useState<Look>({});
+  const [showAll, setShowAll] = useState(false);   // শুরুতে অল্প কয়েকটা অবতার, "আরও" চাপলে সব
   const setLook = (l: Look) => { setLookState(l); onLook?.(l); };   // বাছার সাথে সাথে হেডারের অবতারও বদলায়
   const [savedLook, setSavedLook] = useState<Look>({});   // শেষবার রাখা অবতার: বদলালে তবেই গ্রুপগুলোতে ছড়াই
   useEffect(() => { const u = auth.currentUser; if (u) void loadMyAvatar(u.uid).then((l) => { setLookState(l); setSavedLook(l); }); }, []);
@@ -93,9 +94,10 @@ export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void;
           </div>
           <div className="grid grid-cols-7 gap-2">
             <button type="button" onClick={() => setLook({ ...look, avatar: "", photo: "" })} className={`aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold transition-all ${!look.avatar && !look.photo ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-900/80"}`}>{t("অক্ষর", "Initial")}</button>
-            {AVATARS.map((e) => (
+            {(showAll ? AVATARS : [...AVATARS.slice(0, 5), ...(look.avatar && AVATARS.indexOf(look.avatar) >= 5 ? [look.avatar] : [])]).map((e) => (
               <button key={e} type="button" onClick={() => setLook({ avatar: e, avColor: look.avColor || "indigo", photo: "" })} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${!look.photo && look.avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-slate-900/80"}`}>{e}</button>
             ))}
+            <button type="button" onClick={() => setShowAll(!showAll)} className="aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold bg-slate-100 text-slate-500 dark:bg-slate-900/80">{showAll ? t("কম", "Less") : t("আরও", "More")}</button>
           </div>
           {look.avatar && !look.photo && (
             <div className="flex flex-wrap gap-2.5">

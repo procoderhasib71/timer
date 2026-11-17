@@ -11,7 +11,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
 import { weekId } from "@/lib/leaderboard";
-import { AVATARS, COLORS, AvatarBadge, groupPatch, loadMyAvatar, memberLook, memberMatches, type Look } from "@/lib/avatar";
+import { AVATARS, COLORS, AvatarBadge, groupPatch, loadMyAvatar, memberLook, memberMatches, onAvatarChange, type Look } from "@/lib/avatar";
 import { CHAT_THEMES } from "./themes";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
@@ -59,6 +59,7 @@ export default function CommunityPage() {
   // প্রোফাইলে বাছা অবতার: গ্রুপে ঢোকার সময় এটাই বসে
   const [myLook, setMyLook] = useState<Look>({});
   useEffect(() => { if (me) void loadMyAvatar(me.uid).then(setMyLook); }, [me]);
+  useEffect(() => onAvatarChange(setMyLook), []);
   // অবতার Money বা AdMCQ থেকে বদলালে এখানকার গ্রুপে পুরনোটা থেকে যায়: খুললে একবার মিলিয়ে দিই
   const healed = useRef(false);
   useEffect(() => {
