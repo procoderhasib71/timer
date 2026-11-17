@@ -7,7 +7,7 @@ import { saveAccount } from "@/lib/admcqAccount";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import BotLink from "@/app/components/shared/BotLink";
 import { useLang } from "@/lib/i18n";
-import { AVATARS, COLORS, AvatarBadge, loadMyAvatar, saveMyAvatar, syncAvatarToGroups, type Look } from "@/lib/avatar";
+import { AVATARS, COLORS, AvatarBadge, fileToPhoto, loadMyAvatar, saveMyAvatar, syncAvatarToGroups, type Look } from "@/lib/avatar";
 
 // প্রোফাইল AdMCQ আর Money এর সাথে এক (AdMCQ এর ডাটাবেসে থাকে); অন্য জায়গায় পূরণ করা থাকলে এখানে আগে থেকেই বসানো।
 const LEVELS: [string, string, string][] = [
@@ -52,7 +52,7 @@ export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void;
       const u = auth.currentUser;
       if (u) {
         await saveMyAvatar(u.uid, look).catch(() => undefined);
-        if ((look.avatar || "") !== (savedLook.avatar || "") || (look.avatar && look.avColor !== savedLook.avColor)) {
+        if ((look.photo || "") !== (savedLook.photo || "") || (look.avatar || "") !== (savedLook.avatar || "") || (look.avatar && look.avColor !== savedLook.avColor)) {
           void syncAvatarToGroups(u.uid, look);
           setSavedLook(look);
         }
@@ -80,20 +80,32 @@ export default function ProfileForm({ onSaved, onLook }: { onSaved?: () => void;
         <div className={box}>
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">{t("অবতার", "Avatar")}</h2>
           <div className="flex justify-center"><AvatarBadge name={f.name || "?"} photo={auth.currentUser?.photoURL} look={look} cls="w-20 h-20 text-3xl" /></div>
+          <div className="flex justify-center gap-2">
+            <label className="cursor-pointer px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors">
+              📷 {look.photo ? t("অন্য ছবি দাও", "Change photo") : t("নিজের ছবি দাও", "Upload photo")}
+              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0]; e.target.value = "";
+                if (!file) return;
+                try { setLook({ ...look, photo: await fileToPhoto(file) }); }
+                catch { setError(t("ছবিটা খোলা গেল না, অন্যটা দাও।", "Couldn't read that image, try another.")); }
+              }} />
+            </label>
+            {look.photo && <button type="button" onClick={() => setLook({ ...look, photo: "" })} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900/80 text-xs font-bold text-slate-600 dark:text-slate-300">{t("ছবি সরাও", "Remove photo")}</button>}
+          </div>
           <div className="grid grid-cols-7 gap-2">
-            <button type="button" onClick={() => setLook({ ...look, avatar: "" })} className={`aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold transition-all ${!look.avatar ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-900/80"}`}>{t("ছবি", "Photo")}</button>
+            <button type="button" onClick={() => setLook({ ...look, avatar: "", photo: "" })} className={`aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold transition-all ${!look.avatar && !look.photo ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-900/80"}`}>{t("অক্ষর", "Initial")}</button>
             {AVATARS.map((e) => (
-              <button key={e} type="button" onClick={() => setLook({ avatar: e, avColor: look.avColor || "indigo" })} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${look.avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-slate-900/80"}`}>{e}</button>
+              <button key={e} type="button" onClick={() => setLook({ avatar: e, avColor: look.avColor || "indigo", photo: "" })} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${!look.photo && look.avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-slate-900/80"}`}>{e}</button>
             ))}
           </div>
-          {look.avatar && (
+          {look.avatar && !look.photo && (
             <div className="flex flex-wrap gap-2.5">
               {Object.entries(COLORS).map(([k, [from, to]]) => (
                 <button key={k} type="button" onClick={() => setLook({ ...look, avColor: k })} aria-label={k} className={`w-7 h-7 rounded-full transition-transform ${(look.avColor || "indigo") === k ? "ring-2 ring-offset-2 ring-slate-400 dark:ring-white/60 ring-offset-white dark:ring-offset-slate-800 scale-110" : ""}`} style={{ background: `linear-gradient(135deg, ${from}, ${to})` }} />
               ))}
             </div>
           )}
-          <p className="text-[11px] text-slate-400">{t("কমিউনিটি গ্রুপে ঢুকলে এই অবতারটাই দেখাবে, পরে বদলালে সব গ্রুপেই বদলে যাবে। \"ছবি\" বাছলে Google ছবি বা নামের প্রথম অক্ষর।", "This shows up in your community groups, and changing it updates all of them. \"Photo\" uses your Google picture or initial.")}</p>
+          <p className="text-[11px] text-slate-400">{t("নিজের ছবি বা একটা অবতার বাছো। Focus, Money, AdMCQ আর পোর্টাল, সব জায়গায় এটাই দেখাবে, গ্রুপগুলোতেও।", "Upload your photo or pick an avatar. It shows across Focus, Money, AdMCQ, the portal and your groups.")}</p>
         </div>
 
         <div className={box}>

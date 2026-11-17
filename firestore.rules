@@ -56,6 +56,7 @@ service cloud.firestore {
         // নিজেকে মালিক হিসেবে (গ্রুপ বানানোর সাথে একই ব্যাচে) অথবা মালিক অন্য কাউকে সদস্য করছে
         allow create: if request.auth != null
           && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'role', 'joinedAt', 'avatar', 'avColor'])
+          && (request.resource.data.get('photoURL', null) == null || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 120000))
           && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 8))
           && (!('avColor' in request.resource.data) || (request.resource.data.avColor is string && request.resource.data.avColor.size() <= 20))
           && request.resource.data.uid == uid
@@ -65,9 +66,10 @@ service cloud.firestore {
               // খোলা গ্রুপে যে কেউ নিজে সরাসরি ঢুকতে পারে
               || (uid == request.auth.uid && request.resource.data.role == 'member'
                   && get(/databases/$(database)/documents/communities/$(gid)).data.get('privacy', 'closed') == 'open'));
-        // সদস্য শুধু নিজের নাম আর অবতার বদলাতে পারে (পদ, ছবি, যোগের সময় নয়)
+        // সদস্য শুধু নিজের নাম, অবতার আর ছবি বদলাতে পারে (পদ, যোগের সময় নয়); ছবি ছোট data URL বা লিংক
         allow update: if request.auth != null && uid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'avColor'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'avColor', 'photoURL'])
+          && (request.resource.data.get('photoURL', null) == null || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 120000))
           && request.resource.data.name is string && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 40
           && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 8))
           && (!('avColor' in request.resource.data) || (request.resource.data.avColor is string && request.resource.data.avColor.size() <= 20));
@@ -79,6 +81,7 @@ service cloud.firestore {
         allow read: if request.auth != null && (uid == request.auth.uid || isOwnerOf(gid));
         allow create: if request.auth != null && uid == request.auth.uid
           && request.resource.data.keys().hasOnly(['uid', 'name', 'photoURL', 'note', 'createdAt', 'avatar', 'avColor'])
+          && (request.resource.data.get('photoURL', null) == null || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 120000))
           && (!('avatar' in request.resource.data) || (request.resource.data.avatar is string && request.resource.data.avatar.size() <= 8))
           && (!('avColor' in request.resource.data) || (request.resource.data.avColor is string && request.resource.data.avColor.size() <= 20))
           && request.resource.data.uid == uid

@@ -11,7 +11,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
 import { weekId } from "@/lib/leaderboard";
-import { AVATARS, COLORS, AvatarBadge, loadMyAvatar, type Look } from "@/lib/avatar";
+import { AVATARS, COLORS, AvatarBadge, groupPatch, loadMyAvatar, memberLook, memberMatches, type Look } from "@/lib/avatar";
 import { CHAT_THEMES } from "./themes";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
@@ -69,8 +69,8 @@ export default function CommunityPage() {
       const ref = doc(db, "communities", id, "members", me.uid);
       try {
         const m = await getDoc(ref);
-        if (m.exists() && ((m.data().avatar || "") !== (myLook.avatar || "") || (myLook.avatar && m.data().avColor !== myLook.avColor))) {
-          await updateDoc(ref, { avatar: myLook.avatar || "", avColor: myLook.avColor || "indigo" });
+        if (m.exists() && !memberMatches(myLook, m.data())) {
+          await updateDoc(ref, groupPatch(myLook, m.data().photoURL ?? null));
         }
       } catch { /* বাকিগুলো চলুক */ }
     }));
@@ -135,7 +135,7 @@ export default function CommunityPage() {
   const joinOpen = async (g: Group) => {
     if (!me) return;
     try {
-      await setDoc(doc(db, "communities", g.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "member", joinedAt: serverTimestamp(), ...(myLook.avatar ? { avatar: myLook.avatar, avColor: myLook.avColor || "indigo" } : {}) });
+      await setDoc(doc(db, "communities", g.id, "members", me.uid), { uid: me.uid, name: myName, role: "member", joinedAt: serverTimestamp(), ...memberLook(myLook, me.photoURL || null) });
       setStatus((st) => ({ ...st, [g.id]: "member" }));
       setActive(g);
     } catch { flash(t("জয়েন করা যায়নি, আবার চেষ্টা করো", "Couldn't join, try again")); }
@@ -175,7 +175,7 @@ export default function CommunityPage() {
     const ref = doc(collection(db, "communities"));
     const batch = writeBatch(db);
     batch.set(ref, { name: name.trim(), description: description.trim(), icon, color, privacy, ownerUid: me.uid, ownerName: myName, createdAt: serverTimestamp() });
-    batch.set(doc(db, "communities", ref.id, "members", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, role: "owner", joinedAt: serverTimestamp(), ...(myLook.avatar ? { avatar: myLook.avatar, avColor: myLook.avColor || "indigo" } : {}) });
+    batch.set(doc(db, "communities", ref.id, "members", me.uid), { uid: me.uid, name: myName, role: "owner", joinedAt: serverTimestamp(), ...memberLook(myLook, me.photoURL || null) });
     try {
       await batch.commit();
       setCreating(false);
@@ -188,7 +188,7 @@ export default function CommunityPage() {
   const sendRequest = async (g: Group, note: string) => {
     if (!me) return;
     try {
-      await setDoc(doc(db, "communities", g.id, "requests", me.uid), { uid: me.uid, name: myName, photoURL: me.photoURL || null, note: note.trim().slice(0, 200), createdAt: serverTimestamp(), ...(myLook.avatar ? { avatar: myLook.avatar, avColor: myLook.avColor || "indigo" } : {}) });
+      await setDoc(doc(db, "communities", g.id, "requests", me.uid), { uid: me.uid, name: myName, note: note.trim().slice(0, 200), createdAt: serverTimestamp(), ...memberLook(myLook, me.photoURL || null) });
       setStatus((s) => ({ ...s, [g.id]: "pending" }));
       flash(t("অনুরোধ পাঠানো হয়েছে, মালিক মেনে নিলে জানতে পারবে", "Request sent. You'll get in once the owner accepts"));
     } catch { flash(t("অনুরোধ পাঠানো যায়নি", "Couldn't send the request")); }
