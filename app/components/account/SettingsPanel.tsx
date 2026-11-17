@@ -236,7 +236,7 @@ export default function SettingsPanel({ onEditProfile }: { onEditProfile?: () =>
         <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/5 rounded-3xl p-3 shadow-sm dark:shadow-none backdrop-blur-sm">
           <h2 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 pt-2">{t("অ্যাকাউন্ট", "Account")}</h2>
           <ListItem icon={UserRound} title={t("প্রোফাইল এডিট করো", "Edit profile")} onClick={onEditProfile} />
-          <div className="border-t border-slate-100 dark:border-white/5 mt-1 px-2 pt-4 pb-2">
+          <div className="border-t border-slate-100 dark:border-white/5">
             <BotLink auth={auth} app="pomodoro" linked={botLinked} text={t("টাইমার শেষ হলে আর টাস্কের সময়ে Telegram এ মেসেজ পাবে, অ্যাপ বন্ধ থাকলেও।", "Get a Telegram message when your timer ends or a task is due, even if this app is closed.")} />
           </div>
         </div>
