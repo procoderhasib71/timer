@@ -11,7 +11,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useAccount } from "@/app/components/shared/AuthGate";
 import { useLang } from "@/lib/i18n";
 import { weekId } from "@/lib/leaderboard";
-import { AVATARS, COLORS, AvatarBadge, groupPatch, loadMyAvatar, memberLook, memberMatches, onAvatarChange, type Look } from "@/lib/avatar";
+import { AVATARS, COLORS, AvatarBadge, fileToPhoto, groupPatch, loadMyAvatar, memberLook, memberMatches, onAvatarChange, type Look } from "@/lib/avatar";
 import { CHAT_THEMES } from "./themes";
 import {
   collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, doc, getDoc, getDocs, setDoc, deleteDoc,
@@ -375,7 +375,7 @@ export default function CommunityPage() {
                 <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("চ্যাটের থিম", "Chat theme")}</h2>
                 <button onClick={() => setBgPicker(false)} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-3 max-h-[58dvh] overflow-y-auto overscroll-contain p-1 -m-1">
                 {CHAT_THEMES.map((b) => (
                   <button key={b.id} onClick={() => changeTheme(b.id)} className="flex flex-col items-center gap-1.5">
                     <span className={`relative block w-full aspect-[3/4] rounded-2xl border-2 overflow-hidden bg-slate-50 dark:bg-[#0f172a] transition-all ${themeId === b.id ? "border-indigo-500 scale-105" : "border-slate-200 dark:border-white/10"}`}>
@@ -740,12 +740,14 @@ function ProfileSheet({ group, member, myLook, onClose, flash, t }: { group: Gro
   const [name, setName] = useState(member.name);
   const [avatar, setAvatar] = useState(member.avatar || "");
   const [color, setColor] = useState(member.avColor || "indigo");
+  const [photo, setPhoto] = useState<string | null>(member.photoURL || null);   // গ্রুপে দেখানো ছবি (আপলোড বা Google)
+  const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const ok = name.trim().length >= 1 && !busy;
   const save = async () => {
     setBusy(true);
     try {
-      await updateDoc(doc(db, "communities", group.id, "members", member.uid), { name: name.trim().slice(0, 40), avatar, avColor: color });
+      await updateDoc(doc(db, "communities", group.id, "members", member.uid), { name: name.trim().slice(0, 40), avatar, avColor: color, photoURL: photo });
       onClose();
     } catch { flash(t("সেভ করা যায়নি, আবার চেষ্টা করো", "Couldn't save, try again")); setBusy(false); }
   };
@@ -757,16 +759,34 @@ function ProfileSheet({ group, member, myLook, onClose, flash, t }: { group: Gro
           <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t("এই গ্রুপে আমার প্রোফাইল", "My profile in this group")}</h2>
           <button onClick={onClose} aria-label={t("বন্ধ করো", "Close")} className="p-2 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500"><X size={18} /></button>
         </div>
-        <div className="flex justify-center mb-4">{avatarOf(name || "?", member.photoURL, "w-20 h-20 text-3xl", { avatar, avColor: color })}</div>
+        <div className="flex justify-center mb-3">{avatarOf(name || "?", photo, "w-20 h-20 text-3xl", { avatar, avColor: color })}</div>
+        <div className="flex justify-center flex-wrap gap-2 mb-4">
+          <label className="cursor-pointer px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors">
+            📷 {photo?.startsWith("data:") ? t("অন্য ছবি দাও", "Change photo") : t("ছবি দাও", "Add photo")}
+            <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0]; e.target.value = "";
+              if (!file) return;
+              try { setPhoto(await fileToPhoto(file)); setAvatar(""); }
+              catch { flash(t("ছবিটা খোলা গেল না, অন্যটা দাও", "Couldn't read that image, try another")); }
+            }} />
+          </label>
+          {myLook.photo && photo !== myLook.photo && (
+            <button type="button" onClick={() => { setPhoto(myLook.photo || null); setAvatar(""); }} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold text-slate-600 dark:text-slate-300">{t("প্রোফাইলের ছবি নাও", "Use profile photo")}</button>
+          )}
+          {photo?.startsWith("data:") && (
+            <button type="button" onClick={() => setPhoto(null)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-xs font-bold text-slate-600 dark:text-slate-300">{t("ছবি সরাও", "Remove photo")}</button>
+          )}
+        </div>
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("গ্রুপে আমার নাম", "Name in this group")}</label>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40}
           className="mt-1 mb-4 w-full bg-slate-100 dark:bg-white/5 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-400/50" />
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t("অবতার", "Avatar")}</label>
         <div className="mt-2 grid grid-cols-7 gap-2">
           <button type="button" onClick={() => setAvatar("")} className={`aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold transition-all ${!avatar ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-white/5 text-slate-500"}`}>{t("ছবি", "Photo")}</button>
-          {AVATARS.map((e) => (
+          {(showAll ? AVATARS : [...AVATARS.slice(0, 5), ...(avatar && AVATARS.indexOf(avatar) >= 5 ? [avatar] : [])]).map((e) => (
             <button key={e} type="button" onClick={() => setAvatar(e)} className={`aspect-square rounded-xl flex items-center justify-center text-xl transition-all ${avatar === e ? "bg-indigo-100 dark:bg-indigo-500/25 ring-2 ring-indigo-500 scale-105" : "bg-slate-100 dark:bg-white/5"}`}>{e}</button>
           ))}
+          <button type="button" onClick={() => setShowAll(!showAll)} className="aspect-square rounded-xl flex items-center justify-center text-[10px] font-extrabold bg-slate-100 dark:bg-white/5 text-slate-500">{showAll ? t("কম", "Less") : t("আরও", "More")}</button>
         </div>
         {myLook.avatar && (avatar !== myLook.avatar || color !== (myLook.avColor || "indigo")) && (
           <button type="button" onClick={() => { setAvatar(myLook.avatar || ""); setColor(myLook.avColor || "indigo"); }} className="mt-3 text-xs font-bold text-indigo-600 dark:text-indigo-300 underline">{t("প্রোফাইলের অবতারটা নাও", "Use my profile avatar")} {myLook.avatar}</button>
@@ -778,7 +798,7 @@ function ProfileSheet({ group, member, myLook, onClose, flash, t }: { group: Gro
             ))}
           </div>
         )}
-        <p className="text-[11px] text-slate-400 mt-3">{t("এটা শুধু এই গ্রুপের সদস্যরা দেখবে। \"ছবি\" বাছলে তোমার Google ছবি (বা নামের প্রথম অক্ষর) দেখাবে।", "Only members of this group see this. \"Photo\" shows your Google picture (or your initial).")}</p>
+        <p className="text-[11px] text-slate-400 mt-3">{t("এটা শুধু এই গ্রুপের সদস্যরা দেখবে। অবতার বাছলে সেটা, নইলে তোমার ছবি (বা নামের প্রথম অক্ষর) দেখাবে।", "Only members of this group see this. An avatar shows if you pick one, otherwise your photo (or initial).")}</p>
         <button disabled={!ok} onClick={save} className={`press mt-4 w-full py-3.5 rounded-2xl text-sm font-extrabold transition-all ${ok ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" : "bg-slate-200 dark:bg-white/5 text-slate-400"}`}>{busy ? t("সেভ হচ্ছে...", "Saving...") : t("সেভ করো", "Save")}</button>
       </div>
     </div>

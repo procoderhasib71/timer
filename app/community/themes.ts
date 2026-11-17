@@ -63,6 +63,23 @@ const peaks = svg(
     <path d="M70 30 L58 44 L70 40 L82 46Z M180 20 L166 38 L180 34 L194 40Z M310 40 L298 54 L310 50 L322 56Z" fill="#fff" opacity=".8"/>
   </svg>`);
 
+// Messenger এর মতো থিমের নকশা: ছোট হার্ট, বিন্দু, ঝিকিমিকি
+const hearts = svg(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="#f43f5e" opacity=".14">
+    <path d="M30 40c-4-8-16-6-16 3 0 7 9 12 16 18 7-6 16-11 16-18 0-9-12-11-16-3z"/>
+    <path d="M90 90c-3-6-12-4.5-12 2 0 5 7 9 12 13 5-4 12-8 12-13 0-6.5-9-8-12-2z"/>
+    <path d="M92 26c-2-4-8-3-8 1.5 0 3.5 4.5 6 8 9 3.5-3 8-5.5 8-9 0-4.5-6-5.5-8-1.5z"/>
+  </svg>`);
+
+const dots = (c: string) => svg(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="4" cy="4" r="1.6" fill="${c}"/></svg>`);
+
+const sparkles = svg(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="#fff">
+    <path d="M30 20l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" opacity=".5"/><path d="M120 60l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" opacity=".4"/>
+    <path d="M70 120l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" opacity=".35"/><circle cx="140" cy="140" r="1.2" opacity=".6"/><circle cx="10" cy="90" r="1" opacity=".6"/>
+  </svg>`);
+
 export type ChatTheme = {
   id: string; bn: string; en: string;
   tone: "light" | "dark";
@@ -70,7 +87,7 @@ export type ChatTheme = {
   bar: string;                  // হেডার আর নিচের বারের রং
   line: string;                 // বারের কিনারা
   ink: string; sub: string;     // লেখার রং (প্রধান / হালকা)
-  accent: string;               // নিজের মেসেজ আর পাঠানোর বোতাম
+  accent: string;               // নিজের মেসেজ আর পাঠানোর বোতাম (রং বা gradient)
   other: string; otherInk: string; // অন্যের মেসেজ
   chip: string;                 // বোতাম/ঘরের হালকা পেছন
 };
@@ -98,4 +115,30 @@ export const CHAT_THEMES: ChatTheme[] = [
   { id: "mountain", bn: "পাহাড়", en: "Mountains", tone: "light",
     area: { backgroundColor: "#e2e8f0", backgroundImage: `${peaks}, linear-gradient(180deg, #eaf2ff 0%, #cbd5e1 100%)`, backgroundRepeat: "no-repeat", backgroundPosition: "bottom, 0 0", backgroundSize: "100% 150px, 100% 100%" },
     bar: "rgba(241,245,249,.92)", line: "rgba(71,85,105,.22)", ink: "#1e293b", sub: "#64748b", accent: "#475569", other: "rgba(255,255,255,.94)", otherInk: "#1e293b", chip: "rgba(71,85,105,.12)" },
+
+  // ── Messenger এর মতো: নিজের মেসেজ রঙিন gradient বাবলে ──
+  { id: "love", bn: "ভালোবাসা", en: "Love", tone: "light",
+    area: { backgroundColor: "#fff1f4", backgroundImage: `${hearts}, linear-gradient(180deg, #fff5f7 0%, #ffe0e8 100%)`, backgroundRepeat: "repeat, no-repeat", backgroundSize: "120px 120px, 100% 100%" },
+    bar: "rgba(255,241,244,.94)", line: "rgba(244,63,94,.2)", ink: "#881337", sub: "#be4b6b", accent: "linear-gradient(135deg, #ff6b9a, #f0185a)", other: "rgba(255,255,255,.95)", otherInk: "#881337", chip: "rgba(244,63,94,.12)" },
+  { id: "berry", bn: "বেরি", en: "Berry", tone: "dark",
+    area: { backgroundColor: "#2a0f3d", backgroundImage: "radial-gradient(circle at 15% 10%, rgba(236,72,153,.35), transparent 45%), radial-gradient(circle at 90% 85%, rgba(168,85,247,.4), transparent 50%), linear-gradient(180deg, #2a0f3d, #3b0d36)" },
+    bar: "rgba(42,15,61,.96)", line: "rgba(255,255,255,.1)", ink: "#fce7f3", sub: "#d8a8d0", accent: "linear-gradient(135deg, #a855f7, #ec4899)", other: "rgba(255,255,255,.12)", otherInk: "#fce7f3", chip: "rgba(255,255,255,.1)" },
+  { id: "lofi", bn: "সন্ধ্যা", en: "Lo-fi", tone: "dark",
+    area: { backgroundColor: "#1e1b4b", backgroundImage: `${sparkles}, linear-gradient(180deg, #312e81 0%, #6d28d9 55%, #f97316 130%)`, backgroundRepeat: "repeat, no-repeat", backgroundSize: "160px 160px, 100% 100%" },
+    bar: "rgba(30,27,75,.95)", line: "rgba(255,255,255,.12)", ink: "#ede9fe", sub: "#c4b5fd", accent: "linear-gradient(135deg, #8b5cf6, #f97316)", other: "rgba(255,255,255,.14)", otherInk: "#f5f3ff", chip: "rgba(255,255,255,.12)" },
+  { id: "tiedye", bn: "রংধনু", en: "Tie-dye", tone: "light",
+    area: { backgroundColor: "#f5f3ff", backgroundImage: "radial-gradient(circle at 0% 0%, rgba(6,182,212,.35), transparent 40%), radial-gradient(circle at 100% 30%, rgba(236,72,153,.3), transparent 45%), radial-gradient(circle at 20% 100%, rgba(250,204,21,.35), transparent 45%), radial-gradient(circle at 90% 100%, rgba(139,92,246,.3), transparent 40%)" },
+    bar: "rgba(250,245,255,.9)", line: "rgba(139,92,246,.2)", ink: "#3b0764", sub: "#7e5aa8", accent: "linear-gradient(135deg, #06b6d4, #8b5cf6, #ec4899)", other: "rgba(255,255,255,.92)", otherInk: "#3b0764", chip: "rgba(139,92,246,.12)" },
+  { id: "citrus", bn: "লেবু", en: "Citrus", tone: "light",
+    area: { backgroundColor: "#fefce8", backgroundImage: `${dots("rgba(132,204,22,.35)")}, linear-gradient(180deg, #fefce8 0%, #ecfccb 100%)`, backgroundRepeat: "repeat, no-repeat", backgroundSize: "28px 28px, 100% 100%" },
+    bar: "rgba(254,252,232,.94)", line: "rgba(132,204,22,.25)", ink: "#365314", sub: "#6b8a2e", accent: "linear-gradient(135deg, #f59e0b, #84cc16)", other: "rgba(255,255,255,.95)", otherInk: "#365314", chip: "rgba(132,204,22,.15)" },
+  { id: "aurora", bn: "মেরুজ্যোতি", en: "Aurora", tone: "dark",
+    area: { backgroundColor: "#04121f", backgroundImage: `${stars}, radial-gradient(ellipse at 30% 0%, rgba(16,185,129,.45), transparent 55%), radial-gradient(ellipse at 80% 10%, rgba(6,182,212,.4), transparent 50%), linear-gradient(180deg, #052e2b, #04121f)`, backgroundRepeat: "repeat, no-repeat, no-repeat, no-repeat", backgroundSize: "220px 220px, 100% 100%, 100% 100%, 100% 100%" },
+    bar: "rgba(4,18,31,.96)", line: "rgba(255,255,255,.1)", ink: "#d1fae5", sub: "#8cc7b5", accent: "linear-gradient(135deg, #10b981, #06b6d4)", other: "rgba(255,255,255,.1)", otherInk: "#ecfdf5", chip: "rgba(255,255,255,.1)" },
+  { id: "candy", bn: "ক্যান্ডি", en: "Candy", tone: "light",
+    area: { backgroundColor: "#fdf2f8", backgroundImage: `${dots("rgba(96,165,250,.35)")}, linear-gradient(135deg, #fce7f3 0%, #e0f2fe 100%)`, backgroundRepeat: "repeat, no-repeat", backgroundSize: "28px 28px, 100% 100%" },
+    bar: "rgba(253,242,248,.92)", line: "rgba(236,72,153,.2)", ink: "#701a75", sub: "#a35c9e", accent: "linear-gradient(135deg, #f472b6, #60a5fa)", other: "rgba(255,255,255,.95)", otherInk: "#4a1d5c", chip: "rgba(236,72,153,.12)" },
+  { id: "midnight", bn: "মাঝরাত", en: "Midnight", tone: "dark",
+    area: { backgroundColor: "#000000" },
+    bar: "rgba(0,0,0,.96)", line: "rgba(255,255,255,.1)", ink: "#f1f5f9", sub: "#94a3b8", accent: "linear-gradient(135deg, #2563eb, #9333ea)", other: "#1c1c1e", otherInk: "#f1f5f9", chip: "rgba(255,255,255,.1)" },
 ];
